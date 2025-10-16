@@ -1,21 +1,21 @@
 // src/utils/firestoreHelpers.js
-import { 
-  doc, 
-  collection, 
-  addDoc, 
-  setDoc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
-  deleteDoc, 
-  onSnapshot, 
-  query, 
-  where, 
-  orderBy, 
+import {
+  doc,
+  collection,
+  addDoc,
+  setDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
   limit,
-  serverTimestamp 
-} from 'firebase/firestore';
-import { db } from '../firebase';
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "../firebase";
 
 /**
  * Firestore Helper Functions for CA Admin System
@@ -29,7 +29,7 @@ export const firestoreHelpers = {
       const docRef = await addDoc(collectionRef, {
         ...data,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
       console.log("✅ Document created with ID:", docRef.id);
       return docRef;
@@ -42,10 +42,14 @@ export const firestoreHelpers = {
   // Create/Update document with specific ID
   async set(docRef, data, merge = true) {
     try {
-      await setDoc(docRef, {
-        ...data,
-        updatedAt: serverTimestamp()
-      }, { merge });
+      await setDoc(
+        docRef,
+        {
+          ...data,
+          updatedAt: serverTimestamp(),
+        },
+        { merge }
+      );
       console.log("✅ Document set successfully");
       return docRef;
     } catch (error) {
@@ -73,10 +77,11 @@ export const firestoreHelpers = {
   // Read collection
   async getCollection(collectionRef, queryConstraints = []) {
     try {
-      const q = queryConstraints.length > 0 
-        ? query(collectionRef, ...queryConstraints)
-        : collectionRef;
-      
+      const q =
+        queryConstraints.length > 0
+          ? query(collectionRef, ...queryConstraints)
+          : collectionRef;
+
       const querySnapshot = await getDocs(q);
       const docs = [];
       querySnapshot.forEach((doc) => {
@@ -95,7 +100,7 @@ export const firestoreHelpers = {
     try {
       await updateDoc(docRef, {
         ...data,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
       console.log("✅ Document updated successfully");
       return docRef;
@@ -121,23 +126,26 @@ export const firestoreHelpers = {
   subscribe(docOrCollectionRef, callback, errorCallback) {
     try {
       console.log("🔗 Setting up Firestore listener");
-      console.log("📍 Reference type:", docOrCollectionRef.type || 'unknown');
+      console.log("📍 Reference type:", docOrCollectionRef.type || "unknown");
       console.log("📍 Reference path:", docOrCollectionRef.path);
-      
-      const unsubscribe = onSnapshot(docOrCollectionRef, 
+
+      const unsubscribe = onSnapshot(
+        docOrCollectionRef,
         (snapshot) => {
           console.log("🎯 SNAPSHOT RECEIVED!");
           console.log("📊 Snapshot metadata:", snapshot.metadata);
           console.log("📊 Snapshot size:", snapshot.size);
           console.log("📊 Snapshot empty:", snapshot.empty);
-          
+
           if (snapshot.docs) {
             // Collection snapshot
             const docs = [];
             snapshot.forEach((doc) => {
               docs.push({ id: doc.id, ...doc.data() });
             });
-            console.log(`📊 Listener received ${docs.length} documents from collection`);
+            console.log(
+              `📊 Listener received ${docs.length} documents from collection`
+            );
             console.log("📋 Documents:", docs);
             callback(docs);
           } else {
@@ -157,14 +165,14 @@ export const firestoreHelpers = {
           if (errorCallback) errorCallback(error);
         }
       );
-      
+
       console.log("✅ Listener setup complete, unsubscribe function created");
       return unsubscribe;
     } catch (error) {
       console.error("❌ Error setting up listener:", error);
       throw error;
     }
-  }
+  },
 };
 
 // Specific helper functions for CA Admin
@@ -174,20 +182,23 @@ export const clientHelpers = {
   async createClient(clientsRef, clientData) {
     // Validate PAN number
     if (!clientData.pan || clientData.pan.trim().length === 0) {
-      throw new Error('PAN number is required');
+      throw new Error("PAN number is required");
     }
-    
+
     // Sanitize PAN for use as document ID (uppercase, remove special chars)
-    const sanitizedPAN = clientData.pan.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
-    
+    const sanitizedPAN = clientData.pan
+      .toString()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+
     // Validate PAN format (5 letters + 4 digits + 1 letter)
     const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
     if (!panRegex.test(sanitizedPAN)) {
-      throw new Error('Invalid PAN format. Expected format: ABCDE1234F');
+      throw new Error("Invalid PAN format. Expected format: ABCDE1234F");
     }
-    
-    console.log('🆔 Creating client with PAN as ID:', sanitizedPAN);
-    
+
+    console.log("🆔 Creating client with PAN as ID:", sanitizedPAN);
+
     // Use PAN as document ID
     const clientDocRef = doc(clientsRef, sanitizedPAN);
     return await firestoreHelpers.set(clientDocRef, {
@@ -195,7 +206,8 @@ export const clientHelpers = {
       contact: clientData.contact,
       pan: sanitizedPAN, // Store sanitized PAN
       email: clientData.email,
-      years: clientData.years || []
+      firmId: clientData.firmId, // Add firmId here
+      years: clientData.years || [],
     });
   },
 
@@ -212,19 +224,19 @@ export const clientHelpers = {
       // Get all client documents from the clients collection
       const snapshot = await getDocs(clientsCollectionRef);
       const clients = [];
-      
+
       snapshot.forEach((doc) => {
         clients.push({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         });
       });
-      
+
       // Sort clients by name
-      clients.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      clients.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       return clients;
     } catch (error) {
-      console.error('❌ Error getting clients:', error);
+      console.error("❌ Error getting clients:", error);
       throw error;
     }
   },
@@ -232,14 +244,15 @@ export const clientHelpers = {
   subscribeToClients(clientsCollectionRef, callback, errorCallback) {
     try {
       // Subscribe to the clients collection
-      const q = query(clientsCollectionRef, orderBy('name', 'asc'));
-      return onSnapshot(q, 
+      const q = query(clientsCollectionRef, orderBy("name", "asc"));
+      return onSnapshot(
+        q,
         (snapshot) => {
           const clients = [];
           snapshot.forEach((doc) => {
             clients.push({
               id: doc.id,
-              ...doc.data()
+              ...doc.data(),
             });
           });
           callback(clients);
@@ -250,7 +263,7 @@ export const clientHelpers = {
       if (errorCallback) errorCallback(error);
       return () => {};
     }
-  }
+  },
 };
 
 // Document Operations
@@ -266,7 +279,7 @@ export const documentHelpers = {
       fileSize: documentData.fileSize,
       fileType: documentData.fileType,
       uploadedAt: documentData.uploadedAt,
-      uploadedBy: documentData.uploadedBy
+      uploadedBy: documentData.uploadedBy,
     });
   },
 
@@ -281,7 +294,7 @@ export const documentHelpers = {
       fileSize: documentData.fileSize,
       fileType: documentData.fileType,
       uploadedAt: documentData.uploadedAt,
-      uploadedBy: documentData.uploadedBy
+      uploadedBy: documentData.uploadedBy,
     });
   },
 
@@ -291,14 +304,14 @@ export const documentHelpers = {
 
   async getDocuments(documentsRef) {
     return await firestoreHelpers.getCollection(documentsRef, [
-      orderBy('createdAt', 'desc')
+      orderBy("createdAt", "desc"),
     ]);
   },
 
   subscribeToDocuments(documentsRef, callback, errorCallback) {
-    const q = query(documentsRef, orderBy('createdAt', 'desc'));
+    const q = query(documentsRef, orderBy("createdAt", "desc"));
     return firestoreHelpers.subscribe(q, callback, errorCallback);
-  }
+  },
 };
 
 // Banner Operations
@@ -315,7 +328,7 @@ export const bannerHelpers = {
       fileName: bannerData.fileName,
       fileSize: bannerData.fileSize,
       fileType: bannerData.fileType,
-      note: bannerData.note
+      note: bannerData.note,
     });
   },
 
@@ -336,7 +349,7 @@ export const bannerHelpers = {
   subscribeToBanners(bannersRef, callback, errorCallback) {
     console.log("🔗 Setting up banners subscription");
     console.log("📍 Collection reference path:", bannersRef.path);
-    
+
     // Enhanced error callback to catch listener issues
     const enhancedErrorCallback = (error) => {
       console.error("❌ Banner subscription error:", error);
@@ -344,7 +357,7 @@ export const bannerHelpers = {
       console.error("❌ Error message:", error.message);
       if (errorCallback) errorCallback(error);
     };
-    
+
     // Enhanced success callback to ensure we're getting data
     const enhancedCallback = (bannersList) => {
       console.log("🎯 Banner subscription callback triggered!");
@@ -352,10 +365,14 @@ export const bannerHelpers = {
       console.log("📋 Banner data:", bannersList);
       callback(bannersList);
     };
-    
+
     console.log("📋 Setting up basic subscription (no orderBy)...");
-    return firestoreHelpers.subscribe(bannersRef, enhancedCallback, enhancedErrorCallback);
-  }
+    return firestoreHelpers.subscribe(
+      bannersRef,
+      enhancedCallback,
+      enhancedErrorCallback
+    );
+  },
 };
 
 // Notification Operations
@@ -369,7 +386,7 @@ export const notificationHelpers = {
       priority: notificationData.priority,
       fileName: notificationData.fileName,
       fileSize: notificationData.fileSize,
-      fileType: notificationData.fileType
+      fileType: notificationData.fileType,
     });
   },
 
@@ -382,7 +399,7 @@ export const notificationHelpers = {
       priority: notificationData.priority,
       fileName: notificationData.fileName,
       fileSize: notificationData.fileSize,
-      fileType: notificationData.fileType
+      fileType: notificationData.fileType,
     });
   },
 
@@ -392,57 +409,57 @@ export const notificationHelpers = {
 
   async getNotifications(notificationsRef) {
     return await firestoreHelpers.getCollection(notificationsRef, [
-      orderBy('createdAt', 'desc')
+      orderBy("createdAt", "desc"),
     ]);
   },
 
   subscribeToNotifications(notificationsRef, callback, errorCallback) {
-    const q = query(notificationsRef, orderBy('createdAt', 'desc'));
+    const q = query(notificationsRef, orderBy("createdAt", "desc"));
     return firestoreHelpers.subscribe(q, callback, errorCallback);
-  }
+  },
 };
 
 // Admin/Image Operations
 export const adminHelpers = {
   async uploadImage(adminRef, imageId, imageData) {
-    const imageDocRef = doc(adminRef, 'uploadedImages');
-    const imagesCollectionRef = collection(imageDocRef, 'images');
+    const imageDocRef = doc(adminRef, "uploadedImages");
+    const imagesCollectionRef = collection(imageDocRef, "images");
     const specificImageRef = doc(imagesCollectionRef, imageId);
-    
+
     return await firestoreHelpers.set(specificImageRef, {
       name: imageData.name,
       fileName: imageData.fileName,
       url: imageData.url,
       size: imageData.size,
       type: imageData.type,
-      uploadedBy: imageData.uploadedBy
+      uploadedBy: imageData.uploadedBy,
     });
   },
 
   async deleteImage(adminRef, imageId) {
-    const imageDocRef = doc(adminRef, 'uploadedImages');
-    const imagesCollectionRef = collection(imageDocRef, 'images');
+    const imageDocRef = doc(adminRef, "uploadedImages");
+    const imagesCollectionRef = collection(imageDocRef, "images");
     const specificImageRef = doc(imagesCollectionRef, imageId);
-    
+
     return await firestoreHelpers.delete(specificImageRef);
   },
 
   async getImages(adminRef) {
-    const imageDocRef = doc(adminRef, 'uploadedImages');
-    const imagesCollectionRef = collection(imageDocRef, 'images');
-    
+    const imageDocRef = doc(adminRef, "uploadedImages");
+    const imagesCollectionRef = collection(imageDocRef, "images");
+
     return await firestoreHelpers.getCollection(imagesCollectionRef, [
-      orderBy('createdAt', 'desc')
+      orderBy("createdAt", "desc"),
     ]);
   },
 
   subscribeToImages(adminRef, callback, errorCallback) {
-    const imageDocRef = doc(adminRef, 'uploadedImages');
-    const imagesCollectionRef = collection(imageDocRef, 'images');
-    const q = query(imagesCollectionRef, orderBy('createdAt', 'desc'));
-    
+    const imageDocRef = doc(adminRef, "uploadedImages");
+    const imagesCollectionRef = collection(imageDocRef, "images");
+    const q = query(imagesCollectionRef, orderBy("createdAt", "desc"));
+
     return firestoreHelpers.subscribe(q, callback, errorCallback);
-  }
+  },
 };
 
 export default firestoreHelpers;

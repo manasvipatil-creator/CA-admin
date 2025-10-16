@@ -9,7 +9,7 @@ import { clientHelpers } from '../../utils/firestoreHelpers';
 const ClientForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userEmail, getUserClientsRef, getClientDocRef } = useAuth();
+  const { userEmail, getUserClientsRef, getClientDocRef, getSafeEmail } = useAuth();
   const { client, editIndex } = location.state || { client: null, editIndex: null };
   
   const [formData, setFormData] = useState({ name: "", contact: "", pan: "", email: "" });
@@ -180,8 +180,15 @@ const ClientForm = () => {
         console.log("✏️ Client updated in Firestore:", editIndex);
       } else {
         // Add new client to Firestore (PAN will be used as document ID)
+        const firmId = getSafeEmail(userEmail);
+        if (!firmId) {
+          setError("Could not determine Firm ID. Please ensure you are logged in correctly.");
+          setLoading(false);
+          return;
+        }
         await clientHelpers.createClient(clientsRef, {
           ...formData,
+          firmId, // Add firmId
           pan: sanitizedPAN // Use sanitized PAN
         });
         console.log("➕ New client added to Firestore with PAN ID:", sanitizedPAN);
