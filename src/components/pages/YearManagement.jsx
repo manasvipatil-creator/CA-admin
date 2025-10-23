@@ -63,12 +63,8 @@ const YearManagement = () => {
           // Get years from the client's years array
           const clientYears = updatedClient.years || [];
           
-          // Sort years in descending order (extract start year from "YYYY-YY" format)
-          clientYears.sort((a, b) => {
-            const aYear = parseInt(a.split('-')[0]);
-            const bYear = parseInt(b.split('-')[0]);
-            return bYear - aYear;
-          });
+          // Sort years in descending order
+          clientYears.sort((a, b) => parseInt(b) - parseInt(a));
           setYears(clientYears);
           console.log("📅 Years from Firestore:", clientYears);
         } else {
@@ -121,11 +117,7 @@ const YearManagement = () => {
       
       if (clientDoc) {
         const clientYears = clientDoc.years || [];
-        clientYears.sort((a, b) => {
-          const aYear = parseInt(a.split('-')[0]);
-          const bYear = parseInt(b.split('-')[0]);
-          return bYear - aYear;
-        });
+        clientYears.sort((a, b) => parseInt(b) - parseInt(a));
         setYears(clientYears);
         console.log("🔄 Manually refreshed years from Firestore:", clientYears);
       }
@@ -153,39 +145,14 @@ const YearManagement = () => {
   };
 
   const handleEditYearSubmit = async () => {
-    // Validate year format: either "YYYY" or "YYYY-YY"
-    const yearRangePattern = /^(\d{4})-(\d{2})$/;
-    const singleYearPattern = /^\d{4}$/;
-    
-    let yearToEdit = editYear.trim();
-    let isValidYear = false;
-    
-    if (yearRangePattern.test(yearToEdit)) {
-      // Format: "2023-24"
-      const [startYear, endYearShort] = yearToEdit.split('-');
-      const startYearNum = parseInt(startYear);
-      const endYearNum = parseInt(startYear.substring(0, 2) + endYearShort);
-      
-      // Validate that end year is start year + 1
-      if (endYearNum === startYearNum + 1 && startYearNum >= 1900 && startYearNum <= 2100) {
-        isValidYear = true;
-      }
-    } else if (singleYearPattern.test(yearToEdit)) {
-      // Format: "2024" - convert to "2024-25"
-      const startYearNum = parseInt(yearToEdit);
-      if (startYearNum >= 1900 && startYearNum <= 2099) {
-        const endYearShort = ((startYearNum + 1) % 100).toString().padStart(2, '0');
-        yearToEdit = `${startYearNum}-${endYearShort}`;
-        isValidYear = true;
-      }
-    }
-    
-    if (isValidYear && yearToEdit !== originalYear) {
+    if (editYear && editYear !== originalYear && !isNaN(editYear) && editYear.length === 4) {
+      const yearNum = parseInt(editYear);
+      if (yearNum >= 1900 && yearNum <= 2100) {
         setIsEditingYear(true);
         try {
           // Check if new year already exists
-          if (years.includes(yearToEdit)) {
-            showErrorToast(`Year ${yearToEdit} already exists for this client.`);
+          if (years.includes(editYear.toString())) {
+            showErrorToast(`Year ${editYear} already exists for this client.`);
             setIsEditingYear(false);
             return;
           }
@@ -195,7 +162,7 @@ const YearManagement = () => {
             throw new Error("Client PAN is required to edit a year");
           }
           
-          console.log("✏️ Editing year for client PAN:", clientPAN, "from", originalYear, "to", yearToEdit);
+          console.log("✏️ Editing year for client PAN:", clientPAN, "from", originalYear, "to", editYear);
           
           // Get old year document and its documents
           const oldYearDocRef = getYearDocRef(clientPAN, originalYear);
@@ -210,9 +177,9 @@ const YearManagement = () => {
           const oldDocuments = await documentHelpers.getDocuments(oldYearDocumentsRef);
           
           if (oldYearDoc) {
-            // Create new year document
-            const newYearDocRef = getYearDocRef(clientPAN, yearToEdit);
-            const newYearDocumentsRef = getYearDocumentsRef(clientPAN, yearToEdit);
+            // Get new year document
+            const newYearDocRef = getYearDocRef(clientPAN, editYear);
+            const newYearDocumentsRef = getYearDocumentsRef(clientPAN, editYear);
             
             if (!newYearDocRef || !newYearDocumentsRef) {
               throw new Error("Unable to get new year references");
@@ -221,7 +188,7 @@ const YearManagement = () => {
             // Create new year document with updated year
             const newYearData = {
               ...oldYearDoc,
-              year: yearToEdit,
+              year: editYear.toString(),
               updatedAt: new Date().toISOString()
             };
             
@@ -231,7 +198,7 @@ const YearManagement = () => {
             for (const doc of oldDocuments) {
               const updatedDocData = {
                 ...doc,
-                year: yearToEdit,
+                year: editYear.toString(),
                 updatedAt: new Date().toISOString()
               };
               delete updatedDocData.id; // Remove old ID
@@ -247,17 +214,13 @@ const YearManagement = () => {
               const currentUserData = currentClient || client;
               const existingYears = currentUserData?.years || [];
               
-              const updatedYears = existingYears.map(y => y === originalYear ? yearToEdit : y)
-                                               .sort((a, b) => {
-                                                 const aYear = parseInt(a.split('-')[0]);
-                                                 const bYear = parseInt(b.split('-')[0]);
-                                                 return bYear - aYear;
-                                               });
+              const updatedYears = existingYears.map(y => y === originalYear ? editYear.toString() : y)
+                                               .sort((a, b) => parseInt(b) - parseInt(a));
               await firestoreHelpers.update(clientDocRef, { years: updatedYears });
               console.log("📅 Updated client's years array in Firestore:", updatedYears);
             }
             
-            showSuccessToast(`Year updated from ${originalYear} to ${yearToEdit} successfully!`);
+            showSuccessToast(`Year updated from ${originalYear} to ${editYear} successfully!`);
             console.log("✅ Year updated successfully in Firestore");
             
             // Close modal and reset form
@@ -279,8 +242,12 @@ const YearManagement = () => {
         } finally {
           setIsEditingYear(false);
         }
+      } else {
+        showErrorToast("Please enter a year between 1900 and 2100");
+        setIsEditingYear(false);
+      }
     } else {
-      showErrorToast("Please enter a valid year format (e.g., 2024 or 2023-24) that is different from the current year");
+      showErrorToast("Please enter a valid 4-digit year that is different from the current year");
       setIsEditingYear(false);
     }
   };
@@ -346,39 +313,14 @@ const YearManagement = () => {
   };
 
   const handleAddYear = async () => {
-    // Validate year format: either "YYYY" or "YYYY-YY"
-    const yearRangePattern = /^(\d{4})-(\d{2})$/;
-    const singleYearPattern = /^\d{4}$/;
-    
-    let yearToAdd = newYear.trim();
-    let isValidYear = false;
-    
-    if (yearRangePattern.test(yearToAdd)) {
-      // Format: "2023-24"
-      const [startYear, endYearShort] = yearToAdd.split('-');
-      const startYearNum = parseInt(startYear);
-      const endYearNum = parseInt(startYear.substring(0, 2) + endYearShort);
-      
-      // Validate that end year is start year + 1
-      if (endYearNum === startYearNum + 1 && startYearNum >= 1900 && startYearNum <= 2100) {
-        isValidYear = true;
-      }
-    } else if (singleYearPattern.test(yearToAdd)) {
-      // Format: "2024" - convert to "2024-25"
-      const startYearNum = parseInt(yearToAdd);
-      if (startYearNum >= 1900 && startYearNum <= 2099) {
-        const endYearShort = ((startYearNum + 1) % 100).toString().padStart(2, '0');
-        yearToAdd = `${startYearNum}-${endYearShort}`;
-        isValidYear = true;
-      }
-    }
-    
-    if (isValidYear) {
+    if (newYear && !isNaN(newYear) && newYear.length === 4) {
+      const year = parseInt(newYear);
+      if (year >= 1900 && year <= 2100) {
         setIsAddingYear(true);
         try {
           // Check if year already exists
-          if (years.includes(yearToAdd)) {
-            showErrorToast(`Year ${yearToAdd} already exists for this client.`);
+          if (years.includes(newYear.toString())) {
+            showErrorToast(`Year ${newYear} already exists for this client.`);
             return;
           }
           
@@ -395,7 +337,7 @@ const YearManagement = () => {
           // Create year document in Firestore
           // Structure: {safeEmail}/user/clients/{clientPAN}/years/{year}
           const yearData = {
-            year: yearToAdd,
+            year: newYear.toString(),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             documentCount: 0,
@@ -403,7 +345,7 @@ const YearManagement = () => {
           };
           
           // Get year document reference using client PAN
-          const yearDocRef = getYearDocRef(clientPAN, yearToAdd);
+          const yearDocRef = getYearDocRef(clientPAN, newYear);
           if (!yearDocRef) {
             throw new Error("Unable to get year document reference");
           }
@@ -419,30 +361,21 @@ const YearManagement = () => {
             const currentUserData = currentClient || client;
             const existingYears = currentUserData?.years || [];
             
-            if (!existingYears.includes(yearToAdd)) {
-              const updatedYears = [...existingYears, yearToAdd].sort((a, b) => {
-                // Extract start year from format "YYYY-YY"
-                const aYear = parseInt(a.split('-')[0]);
-                const bYear = parseInt(b.split('-')[0]);
-                return bYear - aYear;
-              });
+            if (!existingYears.includes(newYear.toString())) {
+              const updatedYears = [...existingYears, newYear.toString()].sort((a, b) => parseInt(b) - parseInt(a));
               await firestoreHelpers.update(clientDocRef, { years: updatedYears });
               console.log("📅 Updated client's years array in Firestore for PAN:", clientPAN, "Years:", updatedYears);
             }
           }
           
-          showSuccessToast(`Year ${yearToAdd} added successfully!`);
-          console.log(`✅ Year ${yearToAdd} added successfully to Firestore`);
+          showSuccessToast(`Year ${newYear} added successfully!`);
+          console.log(`✅ Year ${newYear} added successfully to Firestore`);
           
           // Manually update local years state to ensure UI updates immediately
           const currentUserData = currentClient || client;
           const existingYears = currentUserData?.years || [];
-          if (!existingYears.includes(yearToAdd)) {
-            const updatedYears = [...existingYears, yearToAdd].sort((a, b) => {
-              const aYear = parseInt(a.split('-')[0]);
-              const bYear = parseInt(b.split('-')[0]);
-              return bYear - aYear;
-            });
+          if (!existingYears.includes(newYear.toString())) {
+            const updatedYears = [...existingYears, newYear.toString()].sort((a, b) => parseInt(b) - parseInt(a));
             setYears(updatedYears);
             console.log("🔄 Manually updated local years state:", updatedYears);
           }
@@ -462,8 +395,12 @@ const YearManagement = () => {
         } finally {
           setIsAddingYear(false);
         }
+      } else {
+        showErrorToast("Please enter a year between 1900 and 2100");
+        setIsAddingYear(false);
+      }
     } else {
-      showErrorToast("Please enter a valid year format (e.g., 2024 or 2023-24)");
+      showErrorToast("Please enter a valid 4-digit year");
       setIsAddingYear(false);
     }
   };
@@ -881,14 +818,16 @@ const YearManagement = () => {
             <Form.Group className="mb-3">
               <Form.Label><strong>📅 Enter New Year</strong></Form.Label>
               <Form.Control
-                type="text"
-                placeholder="e.g., 2023-24, 2024-25, or 2024"
+                type="number"
+                placeholder="e.g., 2022, 2023, 2027"
                 value={newYear}
                 onChange={(e) => setNewYear(e.target.value)}
+                min="1900"
+                max="2100"
                 autoFocus
               />
               <Form.Text className="text-muted">
-                Enter year in format YYYY-YY (e.g., 2023-24) or YYYY (will be converted to YYYY-YY)
+                Enter a 4-digit year (1900-2100)
               </Form.Text>
             </Form.Group>
             
@@ -906,7 +845,7 @@ const YearManagement = () => {
           <Button 
             variant="primary" 
             onClick={handleAddYear}
-            disabled={!newYear || isAddingYear}
+            disabled={!newYear || newYear.length !== 4 || isAddingYear}
           >
             {isAddingYear ? (
               <>
@@ -930,14 +869,16 @@ const YearManagement = () => {
             <Form.Group className="mb-3">
               <Form.Label><strong>📅 Edit Year</strong></Form.Label>
               <Form.Control
-                type="text"
-                placeholder="e.g., 2023-24, 2024-25, or 2024"
+                type="number"
+                placeholder="e.g., 2022, 2023, 2027"
                 value={editYear}
                 onChange={(e) => setEditYear(e.target.value)}
+                min="1900"
+                max="2100"
                 autoFocus
               />
               <Form.Text className="text-muted">
-                Enter year in format YYYY-YY (e.g., 2023-24) or YYYY (will be converted to YYYY-YY)
+                Enter a 4-digit year (1900-2100)
               </Form.Text>
             </Form.Group>
             
@@ -976,7 +917,7 @@ const YearManagement = () => {
           <Button 
             variant="warning" 
             onClick={handleEditYearSubmit}
-            disabled={!editYear || editYear === originalYear || isEditingYear}
+            disabled={!editYear || editYear.length !== 4 || editYear === originalYear || isEditingYear}
           >
             {isEditingYear ? (
               <>

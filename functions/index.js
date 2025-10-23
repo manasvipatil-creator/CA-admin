@@ -26,7 +26,7 @@ exports.sendCaFirmBroadcast = functions.https.onCall(async (data, context) => {
   if (!auth) {
     console.error("❌ No auth context found in context or data");
     throw new functions.https.HttpsError(
-      "unauthenticated",
+      "unauthenticated",+
       "You must be logged in to send notifications."
     );
   }

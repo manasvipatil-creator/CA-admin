@@ -189,7 +189,8 @@ const ClientForm = () => {
         await clientHelpers.createClient(clientsRef, {
           ...formData,
           firmId, // Add firmId
-          pan: sanitizedPAN // Use sanitized PAN
+          pan: sanitizedPAN, // Use sanitized PAN
+          isActive: true // Set as active by default
         });
         console.log("➕ New client added to Firestore with PAN ID:", sanitizedPAN);
       }

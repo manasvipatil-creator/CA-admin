@@ -10,6 +10,7 @@ import Dashboard from "./components/pages/Dashboard";
 import ClientManagement from "./components/pages/ClientManagement";
 import ClientForm from "./components/pages/ClientForm";
 import DocumentManagement from "./components/pages/DocumentManagement";
+import GenericDocumentManagement from "./components/pages/GenericDocumentManagement";
 import YearManagement from "./components/pages/YearManagement";
 import BannerManagement from "./components/pages/BannerManagement";
 import NotificationManagement from "./components/pages/NotificationManagement";
@@ -68,6 +69,7 @@ function AppContent() {
           <Route path="/admin/clients/new" element={<ClientForm />} />
           <Route path="/admin/clients/edit" element={<ClientForm />} />
           <Route path="/admin/documents" element={<DocumentManagement />} />
+          <Route path="/admin/generic-documents" element={<GenericDocumentManagement />} />
           <Route path="/admin/years" element={<YearManagement />} />
           <Route path="/admin/banners" element={<BannerManagement />} />
           <Route path="/admin/notifications" element={<NotificationManagement />} />

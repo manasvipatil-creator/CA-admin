@@ -15,7 +15,7 @@ import {
   Badge,
 } from "react-bootstrap";
 import { db, rtdb } from "../../firebase";
-import { doc } from "firebase/firestore";
+import { doc, collection, getDocs } from "firebase/firestore";
 import { ref, set, remove, onValue, get } from "firebase/database";
 import {
   getStorage,
@@ -25,7 +25,7 @@ import {
 } from "firebase/storage";
 import app from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
-import { clientHelpers } from "../../utils/firestoreHelpers";
+import { clientHelpers, yearsHelpers } from "../../utils/firestoreHelpers";
 
 const UserManagement = ({ goToReports = () => {} }) => {
   const navigate = useNavigate();
@@ -82,6 +82,8 @@ const UserManagement = ({ goToReports = () => {} }) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewDocuments, setPreviewDocuments] = useState([]);
+  const [genericDocsCounts, setGenericDocsCounts] = useState({}); // Store counts by clientId
+  const [isLoadingGenericCounts, setIsLoadingGenericCounts] = useState(false); // Loading state for generic counts
 
   // 🔹 Show Toast Notification
   const showSuccessToast = (message) => {
@@ -174,6 +176,33 @@ const UserManagement = ({ goToReports = () => {} }) => {
       if (unsubscribe) unsubscribe();
     };
   }, [userEmail, getUserClientsRef]);
+
+  // 🔹 Fetch generic documents counts from genericDocuments subcollection
+  useEffect(() => {
+    const fetchGenericDocsCounts = async () => {
+      if (users.length === 0) return;
+
+      setIsLoadingGenericCounts(true);
+      const counts = {};
+      for (const client of users) {
+        try {
+          const clientDocRef = getClientDocRef(client.id);
+          if (clientDocRef) {
+            const genericDocsCollectionRef = collection(clientDocRef, 'genericDocuments');
+            const snapshot = await getDocs(genericDocsCollectionRef);
+            counts[client.id] = snapshot.size;
+          }
+        } catch (error) {
+          console.error(`❌ Error fetching generic docs count for ${client.id}:`, error);
+          counts[client.id] = 0;
+        }
+      }
+      setGenericDocsCounts(counts);
+      setIsLoadingGenericCounts(false);
+    };
+
+    fetchGenericDocsCounts();
+  }, [users, getClientDocRef]);
 
   // 🔹 Handle edit document from Reports page
   useEffect(() => {
@@ -304,6 +333,34 @@ const UserManagement = ({ goToReports = () => {} }) => {
         console.error("❌ Failed to delete client", e);
         showErrorToast("❌ Failed to delete client. Please try again.");
       }
+    }
+  };
+
+  const handleToggleActive = async (index) => {
+    const target = users[index];
+    if (!target?.id || !userEmail) return;
+
+    // If isActive is undefined, treat it as true (active)
+    const currentStatus = target.isActive !== false;
+    const newStatus = !currentStatus;
+    const statusText = newStatus ? "active" : "inactive";
+    
+    try {
+      const clientDocRef = getClientDocRef(target.id);
+      if (!clientDocRef) {
+        showErrorToast("❌ Unable to get client reference. Please try again.");
+        return;
+      }
+
+      await clientHelpers.updateClient(clientDocRef, {
+        isActive: newStatus
+      });
+      
+      showSuccessToast(`Client "${target.name}" marked as ${statusText}!`);
+      console.log(`✅ Client ${target.name} is now ${statusText}. Firebase updated with isActive: ${newStatus}`);
+    } catch (e) {
+      console.error("❌ Failed to update client status", e);
+      showErrorToast("❌ Failed to update client status. Please try again.");
     }
   };
 
@@ -458,6 +515,13 @@ const UserManagement = ({ goToReports = () => {} }) => {
 
     return matchesSearch && matchesYear;
   });
+
+  // Check if search term matches an inactive client's PAN
+  const inactiveClientMatch = searchTerm && uniqueusers.find(
+    (User) => 
+      User.pan?.toLowerCase() === searchTerm.toLowerCase() && 
+      User.isActive === false
+  );
 
   // 🔹 Pagination setup
   const totalItems = filteredusers.length;
@@ -659,6 +723,15 @@ const UserManagement = ({ goToReports = () => {} }) => {
               )}
             </Col>
           </Row>
+          {inactiveClientMatch && (
+            <Row className="mt-2">
+              <Col>
+                <Alert variant="warning" className="mb-0 py-2">
+                  ⚠️ <strong>Client Inactive:</strong> The client with PAN <strong>{inactiveClientMatch.pan}</strong> ({inactiveClientMatch.name}) is currently inactive.
+                </Alert>
+              </Col>
+            </Row>
+          )}
         </Card.Body>
       </Card>
 
@@ -666,8 +739,9 @@ const UserManagement = ({ goToReports = () => {} }) => {
       <div className="table-responsive shadow-sm rounded">
         <Table
           hover
+          size="sm"
           className="mb-0"
-          style={{ borderRadius: "12px", overflow: "hidden" }}
+          style={{ borderRadius: "12px", overflow: "hidden", fontSize: "0.875rem" }}
         >
           <thead
             style={{
@@ -678,55 +752,67 @@ const UserManagement = ({ goToReports = () => {} }) => {
             <tr>
               <th
                 style={{
-                  padding: "16px 20px",
+                  padding: "16px 18px",
                   fontWeight: "600",
-                  fontSize: "0.95rem",
+                  fontSize: "0.9rem",
                   border: "none",
-                  letterSpacing: "0.5px",
+                  letterSpacing: "0.3px",
                 }}
               >
                 👤 User Name
               </th>
               <th
                 style={{
-                  padding: "16px 20px",
+                  padding: "16px 18px",
                   fontWeight: "600",
-                  fontSize: "0.95rem",
+                  fontSize: "0.9rem",
                   border: "none",
-                  letterSpacing: "0.5px",
+                  letterSpacing: "0.3px",
                 }}
               >
                 📞 Contact
               </th>
               <th
                 style={{
-                  padding: "16px 20px",
+                  padding: "16px 18px",
                   fontWeight: "600",
-                  fontSize: "0.95rem",
+                  fontSize: "0.9rem",
                   border: "none",
-                  letterSpacing: "0.5px",
+                  letterSpacing: "0.3px",
                 }}
               >
                 🆔 PAN
               </th>
               <th
                 style={{
-                  padding: "16px 20px",
+                  padding: "16px 18px",
                   fontWeight: "600",
-                  fontSize: "0.95rem",
+                  fontSize: "0.9rem",
                   border: "none",
-                  letterSpacing: "0.5px",
+                  letterSpacing: "0.3px",
                 }}
               >
                 📧 Email
               </th>
               <th
                 style={{
-                  padding: "16px 20px",
+                  padding: "16px 18px",
                   fontWeight: "600",
-                  fontSize: "0.95rem",
+                  fontSize: "0.9rem",
                   border: "none",
-                  letterSpacing: "0.5px",
+                  letterSpacing: "0.3px",
+                  textAlign: "center",
+                }}
+              >
+                🔄 Status
+              </th>
+              <th
+                style={{
+                  padding: "16px 18px",
+                  fontWeight: "600",
+                  fontSize: "0.9rem",
+                  border: "none",
+                  letterSpacing: "0.3px",
                   textAlign: "center",
                 }}
               >
@@ -734,11 +820,23 @@ const UserManagement = ({ goToReports = () => {} }) => {
               </th>
               <th
                 style={{
-                  padding: "16px 20px",
+                  padding: "16px 18px",
                   fontWeight: "600",
-                  fontSize: "0.95rem",
+                  fontSize: "0.9rem",
                   border: "none",
-                  letterSpacing: "0.5px",
+                  letterSpacing: "0.3px",
+                  textAlign: "center",
+                }}
+              >
+                📂 Documents
+              </th>
+              <th
+                style={{
+                  padding: "16px 18px",
+                  fontWeight: "600",
+                  fontSize: "0.9rem",
+                  border: "none",
+                  letterSpacing: "0.3px",
                   textAlign: "center",
                 }}
               >
@@ -750,7 +848,7 @@ const UserManagement = ({ goToReports = () => {} }) => {
             {isLoadingClients ? (
               <tr>
                 <td
-                  colSpan="6"
+                  colSpan="8"
                   style={{
                     padding: "60px 20px",
                     textAlign: "center",
@@ -795,88 +893,106 @@ const UserManagement = ({ goToReports = () => {} }) => {
                 >
                   <td
                     style={{
-                      padding: "16px 20px",
+                      padding: "16px 18px",
                       color: "#2c3e50",
                       border: "none",
                       borderBottom: "1px solid #e9ecef",
                     }}
                   >
-                    <div
-                      className="d-flex align-items-center"
-                      style={{
-                        borderRadius: "8px",
-                        padding: "8px",
-                      }}
-                    >
+                    <div className="d-flex align-items-center">
                       <div
-                        className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3"
+                        className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2"
                         style={{
                           width: "40px",
                           height: "40px",
-                          fontSize: "16px",
+                          fontSize: "15px",
                           fontWeight: "bold",
                         }}
                       >
                         {User.name?.charAt(0)?.toUpperCase() || "?"}
                       </div>
                       <div>
-                        <div
-                          style={{
-                            fontSize: "1rem",
-                            fontWeight: "600",
-                            color: "#2c3e50",
-                          }}
-                        >
-                          {User.name}
+                        <div className="d-flex align-items-center gap-1">
+                          <div
+                            style={{
+                              fontSize: "0.95rem",
+                              fontWeight: "600",
+                              color: "#2c3e50",
+                              lineHeight: "1.6",
+                            }}
+                          >
+                            {User.name}
+                          </div>
+                          {User.isActive === false && (
+                            <Badge bg="secondary" style={{ fontSize: "0.65rem" }}>
+                              Inactive
+                            </Badge>
+                          )}
                         </div>
-                        <small className="text-muted">User Profile</small>
                       </div>
                     </div>
                   </td>
                   <td
                     style={{
-                      padding: "16px 20px",
+                      padding: "16px 18px",
                       color: "#495057",
                       border: "none",
                       borderBottom: "1px solid #e9ecef",
+                      fontSize: "0.9rem",
+                      lineHeight: "1.7",
                     }}
                   >
-                    <div className="d-flex align-items-center">
-                      <span className="badge bg-light text-dark me-2">📱</span>
-                      {User.contact}
-                    </div>
+                    {User.contact}
                   </td>
                   <td
                     style={{
-                      padding: "16px 20px",
+                      padding: "16px 18px",
                       color: "#495057",
                       border: "none",
                       borderBottom: "1px solid #e9ecef",
                     }}
                   >
                     <span
-                      className="badge bg-info text-white px-3 py-2"
-                      style={{ fontSize: "0.85rem", letterSpacing: "1px" }}
+                      className="badge bg-info text-white px-2 py-1"
+                      style={{ fontSize: "0.75rem", letterSpacing: "0.5px" }}
                     >
                       {User.pan}
                     </span>
                   </td>
                   <td
                     style={{
-                      padding: "16px 20px",
+                      padding: "16px 18px",
                       color: "#495057",
+                      border: "none",
+                      borderBottom: "1px solid #e9ecef",
+                      fontSize: "0.9rem",
+                      lineHeight: "1.7",
+                    }}
+                  >
+                    {User.email}
+                  </td>
+                  <td
+                    style={{
+                      padding: "16px 18px",
+                      textAlign: "center",
                       border: "none",
                       borderBottom: "1px solid #e9ecef",
                     }}
                   >
-                    <div className="d-flex align-items-center">
-                      <span className="badge bg-light text-dark me-2">✉️</span>
-                      <span style={{ fontSize: "0.9rem" }}>{User.email}</span>
-                    </div>
+                    <Badge
+                      bg={User.isActive !== false ? "success" : "secondary"}
+                      style={{
+                        fontSize: "0.85rem",
+                        padding: "7px 14px",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {User.isActive !== false ? "✅ Active" : "⭕ Inactive"}
+                    </Badge>
                   </td>
                   <td
                     style={{
-                      padding: "16px 20px",
+                      padding: "16px 18px",
                       textAlign: "center",
                       border: "none",
                       borderBottom: "1px solid #e9ecef",
@@ -913,12 +1029,12 @@ const UserManagement = ({ goToReports = () => {} }) => {
 
                       return (
                         <span
-                          className="badge bg-primary text-white px-3 py-2"
+                          className="badge bg-primary text-white"
                           style={{
-                            fontSize: "0.9rem",
+                            fontSize: "0.85rem",
                             fontWeight: "600",
-                            letterSpacing: "0.5px",
                             cursor: "pointer",
+                            padding: "7px 14px",
                           }}
                           onClick={() => {
                             navigate("/admin/years", {
@@ -929,53 +1045,129 @@ const UserManagement = ({ goToReports = () => {} }) => {
                             ", "
                           )}`}
                         >
-                          📅 {yearCount} {yearCount === 1 ? "Year" : "Years"}
+                          📅 {yearCount}
                         </span>
                       );
                     })()}
                   </td>
                   <td
                     style={{
-                      padding: "16px 20px",
+                      padding: "16px 18px",
                       textAlign: "center",
                       border: "none",
                       borderBottom: "1px solid #e9ecef",
                     }}
                   >
-                    <div className="d-flex gap-2 justify-content-center">
+                    {(() => {
+                      // Get generic documents count from years subcollection
+                      const genericCount = genericDocsCounts[User.id] || 0;
+                      const isLoading = isLoadingGenericCounts && !genericDocsCounts[User.id];
+
+                      return (
+                        <Button
+                          variant={genericCount > 0 ? "success" : "secondary"}
+                          size="sm"
+                          onClick={() => {
+                            navigate("/admin/generic-documents", {
+                              state: { client: User },
+                            });
+                          }}
+                          disabled={isLoading}
+                          style={{
+                            borderRadius: "6px",
+                            padding: "7px 14px",
+                            fontWeight: "500",
+                            border: "none",
+                            fontSize: "0.85rem",
+                            background: genericCount > 0
+                              ? "linear-gradient(45deg, #28a745, #20c997)"
+                              : "linear-gradient(45deg, #6c757d, #5a6268)",
+                            boxShadow: genericCount > 0
+                              ? "0 2px 4px rgba(40,167,69,0.2)"
+                              : "0 2px 4px rgba(108,117,125,0.2)",
+                            transition: "all 0.3s ease",
+                            opacity: isLoading ? 0.7 : 1,
+                          }}
+                          title={`Click to manage generic documents (${genericCount} documents)`}
+                        >
+                          {isLoading ? (
+                            <>
+                              <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                              ...
+                            </>
+                          ) : (
+                            <>📂 {genericCount}</>
+                          )}
+                        </Button>
+                      );
+                    })()}
+                  </td>
+                  <td
+                    style={{
+                      padding: "16px 18px",
+                      textAlign: "center",
+                      border: "none",
+                      borderBottom: "1px solid #e9ecef",
+                    }}
+                  >
+                    <div className="d-flex gap-1 justify-content-center flex-wrap">
+                      <Button
+                        variant={User.isActive !== false ? "success" : "secondary"}
+                        size="sm"
+                        onClick={() => handleToggleActive(startIndex + index)}
+                        style={{
+                          borderRadius: "6px",
+                          padding: "7px 14px",
+                          fontWeight: "500",
+                          fontSize: "0.85rem",
+                          border: "none",
+                          background: User.isActive !== false
+                            ? "linear-gradient(45deg, #28a745, #20c997)"
+                            : "linear-gradient(45deg, #6c757d, #5a6268)",
+                          boxShadow: User.isActive !== false
+                            ? "0 2px 4px rgba(40,167,69,0.2)"
+                            : "0 2px 4px rgba(108,117,125,0.2)",
+                          transition: "all 0.3s ease",
+                        }}
+                        title={User.isActive !== false ? "Click to mark as inactive" : "Click to mark as active"}
+                      >
+                        {User.isActive !== false ? "✅" : "⭕"}
+                      </Button>
                       <Button
                         variant="warning"
                         size="sm"
-                        onClick={() => handleEdit(index)}
+                        onClick={() => handleEdit(startIndex + index)}
                         style={{
-                          borderRadius: "8px",
-                          padding: "8px 16px",
+                          borderRadius: "6px",
+                          padding: "7px 14px",
                           fontWeight: "500",
+                          fontSize: "0.85rem",
                           border: "none",
                           background:
                             "linear-gradient(45deg, #ffc107, #e0a800)",
-                          boxShadow: "0 2px 6px rgba(255,193,7,0.3)",
+                          boxShadow: "0 2px 4px rgba(255,193,7,0.2)",
                           transition: "all 0.3s ease",
                         }}
                       >
-                        ✏️ Edit
+                        ✏️
                       </Button>
                       <Button
                         variant="danger"
                         size="sm"
-                        onClick={() => handleDelete(index)}
+                        onClick={() => handleDelete(startIndex + index)}
                         style={{
-                          borderRadius: "8px",
-                          padding: "8px 16px",
+                          borderRadius: "6px",
+                          padding: "7px 14px",
                           fontWeight: "500",
+                          fontSize: "0.85rem",
                           border: "none",
                           background:
                             "linear-gradient(45deg, #dc3545, #c82333)",
-                          boxShadow: "0 2px 6px rgba(220,53,69,0.3)",
+                          boxShadow: "0 2px 4px rgba(220,53,69,0.2)",
                           transition: "all 0.3s ease",
                         }}
                       >
-                        🗑️ Delete
+                        🗑️
                       </Button>
                     </div>
                   </td>
@@ -985,7 +1177,7 @@ const UserManagement = ({ goToReports = () => {} }) => {
             {!isLoadingClients && users.length === 0 && (
               <tr>
                 <td
-                  colSpan="6"
+                  colSpan="8"
                   style={{
                     padding: "40px 20px",
                     textAlign: "center",

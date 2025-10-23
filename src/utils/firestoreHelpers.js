@@ -98,11 +98,13 @@ export const firestoreHelpers = {
   // Update document
   async update(docRef, data) {
     try {
-      await updateDoc(docRef, {
+      const updateData = {
         ...data,
         updatedAt: serverTimestamp(),
-      });
-      console.log("✅ Document updated successfully");
+      };
+      await updateDoc(docRef, updateData);
+      console.log("✅ Document updated successfully at:", docRef.path);
+      console.log("📊 Updated fields:", Object.keys(data).join(", "));
       return docRef;
     } catch (error) {
       console.error("❌ Error updating document:", error);
@@ -208,10 +210,12 @@ export const clientHelpers = {
       email: clientData.email,
       firmId: clientData.firmId, // Add firmId here
       years: clientData.years || [],
+      isActive: clientData.isActive !== undefined ? clientData.isActive : true, // Default to active
     });
   },
 
   async updateClient(clientDocRef, clientData) {
+    console.log("📝 Updating client in Firestore:", clientDocRef.path, "with data:", clientData);
     return await firestoreHelpers.update(clientDocRef, clientData);
   },
 
@@ -459,6 +463,56 @@ export const adminHelpers = {
     const q = query(imagesCollectionRef, orderBy("createdAt", "desc"));
 
     return firestoreHelpers.subscribe(q, callback, errorCallback);
+  },
+};
+
+// Years and Generic Documents Operations
+export const yearsHelpers = {
+  // Get years subcollection reference for a client
+  getYearsCollectionRef(clientDocRef) {
+    return collection(clientDocRef, "years");
+  },
+
+  // Get a specific year document reference
+  getYearDocRef(clientDocRef, yearId) {
+    return doc(collection(clientDocRef, "years"), yearId);
+  },
+
+  // Create or update a year document
+  async createOrUpdateYear(clientDocRef, yearId, yearData) {
+    const yearDocRef = doc(collection(clientDocRef, "years"), yearId);
+    return await firestoreHelpers.set(yearDocRef, yearData);
+  },
+
+  // Get all years for a client
+  async getYears(clientDocRef) {
+    const yearsCollectionRef = collection(clientDocRef, "years");
+    return await firestoreHelpers.getCollection(yearsCollectionRef);
+  },
+
+  // Subscribe to years collection
+  subscribeToYears(clientDocRef, callback, errorCallback) {
+    const yearsCollectionRef = collection(clientDocRef, "years");
+    return firestoreHelpers.subscribe(yearsCollectionRef, callback, errorCallback);
+  },
+
+  // Get generic documents count across all years
+  async getGenericDocumentsCount(clientDocRef) {
+    try {
+      const yearsCollectionRef = collection(clientDocRef, "years");
+      const yearsSnapshot = await getDocs(yearsCollectionRef);
+      let totalCount = 0;
+
+      for (const yearDoc of yearsSnapshot.docs) {
+        const genericDocs = yearDoc.data().genericDocuments || [];
+        totalCount += Array.isArray(genericDocs) ? genericDocs.length : 0;
+      }
+
+      return totalCount;
+    } catch (error) {
+      console.error("❌ Error getting generic documents count:", error);
+      return 0;
+    }
   },
 };
 
