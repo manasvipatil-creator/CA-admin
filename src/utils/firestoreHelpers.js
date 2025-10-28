@@ -382,29 +382,57 @@ export const bannerHelpers = {
 // Notification Operations
 export const notificationHelpers = {
   async createNotification(notificationsRef, notificationData) {
-    return await firestoreHelpers.create(notificationsRef, {
+    const data = {
       title: notificationData.title,
       message: notificationData.message,
-      imageUrl: notificationData.imageUrl,
-      imagePath: notificationData.imagePath,
       priority: notificationData.priority,
-      fileName: notificationData.fileName,
-      fileSize: notificationData.fileSize,
-      fileType: notificationData.fileType,
-    });
+    };
+    
+    // Only add image-related fields if they exist
+    if (notificationData.imageUrl) {
+      data.imageUrl = notificationData.imageUrl;
+    }
+    if (notificationData.imagePath) {
+      data.imagePath = notificationData.imagePath;
+    }
+    if (notificationData.fileName) {
+      data.fileName = notificationData.fileName;
+    }
+    if (notificationData.fileSize) {
+      data.fileSize = notificationData.fileSize;
+    }
+    if (notificationData.fileType) {
+      data.fileType = notificationData.fileType;
+    }
+    
+    return await firestoreHelpers.create(notificationsRef, data);
   },
 
   async updateNotification(notificationDocRef, notificationData) {
-    return await firestoreHelpers.update(notificationDocRef, {
+    const data = {
       title: notificationData.title,
       message: notificationData.message,
-      imageUrl: notificationData.imageUrl,
-      imagePath: notificationData.imagePath,
       priority: notificationData.priority,
-      fileName: notificationData.fileName,
-      fileSize: notificationData.fileSize,
-      fileType: notificationData.fileType,
-    });
+    };
+    
+    // Only add image-related fields if they exist
+    if (notificationData.imageUrl) {
+      data.imageUrl = notificationData.imageUrl;
+    }
+    if (notificationData.imagePath) {
+      data.imagePath = notificationData.imagePath;
+    }
+    if (notificationData.fileName) {
+      data.fileName = notificationData.fileName;
+    }
+    if (notificationData.fileSize) {
+      data.fileSize = notificationData.fileSize;
+    }
+    if (notificationData.fileType) {
+      data.fileType = notificationData.fileType;
+    }
+    
+    return await firestoreHelpers.update(notificationDocRef, data);
   },
 
   async deleteNotification(notificationDocRef) {

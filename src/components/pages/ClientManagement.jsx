@@ -26,6 +26,7 @@ import {
 import app from "../../firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { clientHelpers, yearsHelpers } from "../../utils/firestoreHelpers";
+import { Alert } from 'react-bootstrap';
 
 const UserManagement = ({ goToReports = () => {} }) => {
   const navigate = useNavigate();

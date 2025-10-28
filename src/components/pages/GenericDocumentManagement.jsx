@@ -45,6 +45,9 @@ const GenericDocumentManagement = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingDocument, setIsLoadingDocument] = useState(false);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
+  
+  // Drag and drop states
+  const [isDragging, setIsDragging] = useState(false);
 
   // Load generic documents from Firebase RTDB
   useEffect(() => {
@@ -201,12 +204,64 @@ const GenericDocumentManagement = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Extract file name without extension for document name
+      const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+      
       setDocForm({
         ...docForm,
         file: file,
         fileName: file.name,
+        docName: docForm.docName || fileNameWithoutExt, // Only set if docName is empty
         localPreviewUrl: URL.createObjectURL(file),
       });
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      
+      // Check file type
+      const allowedTypes = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+      const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+      
+      if (allowedTypes.includes(fileExtension)) {
+        // Extract file name without extension for document name
+        const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+        
+        setDocForm({
+          ...docForm,
+          file: file,
+          fileName: file.name,
+          docName: docForm.docName || fileNameWithoutExt, // Only set if docName is empty
+          localPreviewUrl: URL.createObjectURL(file),
+        });
+      } else {
+        showErrorToast('Invalid file type. Please upload PDF, JPG, PNG, DOC, or DOCX files.');
+      }
     }
   };
 
@@ -432,13 +487,60 @@ const GenericDocumentManagement = () => {
             
             <Form.Group className="mb-3">
               <Form.Label><strong>Upload File *</strong></Form.Label>
-              <Form.Control
-                type="file"
-                onChange={handleFileChange}
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              />
-              <Form.Text className="text-muted">
-                Supported formats: PDF, JPG, PNG, DOC, DOCX
+              
+              {/* Drag and Drop Zone */}
+              <div
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                style={{
+                  border: isDragging ? '3px dashed #007bff' : '2px dashed #dee2e6',
+                  borderRadius: '12px',
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  backgroundColor: isDragging ? '#e7f3ff' : '#f8f9fa',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  position: 'relative',
+                }}
+                onClick={() => document.getElementById('fileInput').click()}
+              >
+                <input
+                  id="fileInput"
+                  type="file"
+                  onChange={handleFileChange}
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  style={{ display: 'none' }}
+                />
+                
+                {docForm.fileName ? (
+                  <div>
+                    <div style={{ fontSize: '3rem', marginBottom: '12px' }}>✅</div>
+                    <div className="fw-bold text-success mb-2">File Selected</div>
+                    <div className="text-muted">{docForm.fileName}</div>
+                    <div className="mt-2">
+                      <small className="text-primary">Click to change file</small>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: '3rem', marginBottom: '12px' }}>
+                      {isDragging ? '📥' : '📁'}
+                    </div>
+                    <div className="fw-bold mb-2">
+                      {isDragging ? 'Drop file here' : 'Drag & Drop file here'}
+                    </div>
+                    <div className="text-muted mb-2">or</div>
+                    <Button variant="outline-primary" size="sm">
+                      Browse Files
+                    </Button>
+                  </div>
+                )}
+              </div>
+              
+              <Form.Text className="text-muted d-block mt-2">
+                <i className="bi bi-info-circle"></i> Supported formats: PDF, JPG, PNG, DOC, DOCX
               </Form.Text>
             </Form.Group>
 

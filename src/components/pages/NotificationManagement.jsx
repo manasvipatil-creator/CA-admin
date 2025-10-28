@@ -165,7 +165,7 @@ const NotificationManagement = () => {
         title: formData.title.trim(),
         message: formData.message.trim(),
         priority: formData.priority,
-        ...imageData,
+        ...(imageData && imageData), // Only spread if imageData exists
       };
 
       const notificationsRef = getUserNotificationsRef();
@@ -408,18 +408,6 @@ const NotificationManagement = () => {
                   textAlign: "center",
                 }}
               >
-                🎯 Priority
-              </th>
-              <th
-                style={{
-                  padding: "16px 20px",
-                  fontWeight: "600",
-                  fontSize: "0.95rem",
-                  border: "none",
-                  letterSpacing: "0.5px",
-                  textAlign: "center",
-                }}
-              >
                 📅 Created
               </th>
               <th
@@ -495,16 +483,6 @@ const NotificationManagement = () => {
                   ) : (
                     <Badge bg="secondary">No Image</Badge>
                   )}
-                </td>
-                <td
-                  style={{
-                    padding: "16px 20px",
-                    textAlign: "center",
-                    border: "none",
-                    borderBottom: "1px solid #e9ecef",
-                  }}
-                >
-                  {getPriorityBadge(notification.priority)}
                 </td>
                 <td
                   style={{
@@ -652,7 +630,7 @@ const NotificationManagement = () => {
             </Row>
 
             <Row>
-              <Col md={8}>
+              <Col md={12}>
                 <Form.Group className="mb-3">
                   <Form.Label>
                     <strong>🖼️ Image</strong>
@@ -667,23 +645,6 @@ const NotificationManagement = () => {
                   <Form.Text className="text-muted">
                     Upload an image for the notification (optional)
                   </Form.Text>
-                </Form.Group>
-              </Col>
-              <Col md={4}>
-                <Form.Group className="mb-3">
-                  <Form.Label>
-                    <strong>🎯 Priority</strong>
-                  </Form.Label>
-                  <Form.Select
-                    value={formData.priority}
-                    onChange={(e) =>
-                      setFormData({ ...formData, priority: e.target.value })
-                    }
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </Form.Select>
                 </Form.Group>
               </Col>
             </Row>

@@ -31,6 +31,14 @@ const YearManagement = () => {
   const [isLoadingDocumentCounts, setIsLoadingDocumentCounts] = useState(false);
   const [isAddingYear, setIsAddingYear] = useState(false);
   const [isEditingYear, setIsEditingYear] = useState(false);
+
+  // Helper function to format year as "2020-21"
+  const formatYear = (year) => {
+    const yearNum = parseInt(year);
+    const nextYear = yearNum + 1;
+    const nextYearShort = nextYear.toString().slice(-2);
+    return `${yearNum}-${nextYearShort}`;
+  };
   // Set up real-time listener for client data updates using Firestore
   useEffect(() => {
     if (!client?.id && !client?.pan) {
@@ -633,7 +641,7 @@ const YearManagement = () => {
                           transition: 'all 0.3s ease'
                         }}
                         onClick={() => handleManageDocuments(year)}
-                        title={`Click to view ${docCount} documents for year ${year}`}
+                        title={`Click to view ${docCount} documents for year ${formatYear(year)}`}
                         onMouseEnter={(e) => {
                           e.target.style.transform = 'translateY(-2px)';
                           e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
@@ -643,7 +651,7 @@ const YearManagement = () => {
                           e.target.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
                         }}
                       >
-                        {year}
+                        {formatYear(year)}
                       </Badge>
                       {year === new Date().getFullYear().toString() && (
                         <div className="ms-2">
