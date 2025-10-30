@@ -30,10 +30,7 @@ const GenericDocumentManagement = () => {
   const [editingDocId, setEditingDocId] = useState(null);
   const [selectedYear, setSelectedYear] = useState('generic'); // Default year for generic documents
   const [docForm, setDocForm] = useState({
-    docName: "",
-    fileName: "",
-    file: null,
-    localPreviewUrl: "",
+    files: [], // Array of file objects: {file, fileName, docName, localPreviewUrl}
   });
   
   // Toast states
@@ -118,10 +115,7 @@ const GenericDocumentManagement = () => {
 
   const handleAddDocument = () => {
     setDocForm({
-      docName: "",
-      fileName: "",
-      file: null,
-      localPreviewUrl: "",
+      files: [],
     });
     setEditingDocId(null);
     setShowDocForm(true);
@@ -145,10 +139,13 @@ const GenericDocumentManagement = () => {
 
   const handleEditDocument = (doc) => {
     setDocForm({
-      docName: doc.name || doc.docName || "",
-      fileName: doc.fileName || "",
-      file: null,
-      localPreviewUrl: doc.fileData || "",
+      files: [{
+        file: null,
+        fileName: doc.fileName || "",
+        docName: doc.name || doc.docName || "",
+        localPreviewUrl: doc.fileData || "",
+        existingDoc: true
+      }],
     });
     setEditingDocId(doc.id);
     setShowDocForm(true);
@@ -202,17 +199,24 @@ const GenericDocumentManagement = () => {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Extract file name without extension for document name
-      const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+    const selectedFiles = Array.from(e.target.files);
+    if (selectedFiles.length > 0) {
+      const newFiles = selectedFiles.map(file => {
+        // Extract file name without extension for document name
+        const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+        
+        return {
+          file: file,
+          fileName: file.name,
+          docName: fileNameWithoutExt,
+          localPreviewUrl: URL.createObjectURL(file),
+          id: `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}` // Temporary ID for tracking
+        };
+      });
       
       setDocForm({
         ...docForm,
-        file: file,
-        fileName: file.name,
-        docName: docForm.docName || fileNameWithoutExt, // Only set if docName is empty
-        localPreviewUrl: URL.createObjectURL(file),
+        files: [...docForm.files, ...newFiles],
       });
     }
   };
@@ -240,34 +244,75 @@ const GenericDocumentManagement = () => {
     e.stopPropagation();
     setIsDragging(false);
 
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      
-      // Check file type
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles && droppedFiles.length > 0) {
       const allowedTypes = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
-      const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+      const validFiles = [];
+      const invalidFiles = [];
       
-      if (allowedTypes.includes(fileExtension)) {
-        // Extract file name without extension for document name
-        const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+      droppedFiles.forEach(file => {
+        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+        if (allowedTypes.includes(fileExtension)) {
+          validFiles.push(file);
+        } else {
+          invalidFiles.push(file.name);
+        }
+      });
+      
+      if (validFiles.length > 0) {
+        const newFiles = validFiles.map(file => {
+          // Extract file name without extension for document name
+          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+          
+          return {
+            file: file,
+            fileName: file.name,
+            docName: fileNameWithoutExt,
+            localPreviewUrl: URL.createObjectURL(file),
+            id: `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}` // Temporary ID for tracking
+          };
+        });
         
         setDocForm({
           ...docForm,
-          file: file,
-          fileName: file.name,
-          docName: docForm.docName || fileNameWithoutExt, // Only set if docName is empty
-          localPreviewUrl: URL.createObjectURL(file),
+          files: [...docForm.files, ...newFiles],
         });
-      } else {
-        showErrorToast('Invalid file type. Please upload PDF, JPG, PNG, DOC, or DOCX files.');
+      }
+      
+      if (invalidFiles.length > 0) {
+        showErrorToast(`Invalid file types: ${invalidFiles.join(', ')}. Please upload PDF, JPG, PNG, DOC, or DOCX files.`);
       }
     }
   };
 
+  // Function to remove a file from the selection
+  const handleRemoveFile = (fileId) => {
+    setDocForm({
+      ...docForm,
+      files: docForm.files.filter(file => file.id !== fileId)
+    });
+  };
+
+  // Function to update document name for a specific file
+  const handleUpdateDocName = (fileId, newDocName) => {
+    setDocForm({
+      ...docForm,
+      files: docForm.files.map(file => 
+        file.id === fileId ? { ...file, docName: newDocName } : file
+      )
+    });
+  };
+
   const handleSaveDocument = async () => {
-    if (!docForm.docName || !docForm.file) {
-      showErrorToast("Please provide document name and file");
+    if (docForm.files.length === 0) {
+      showErrorToast("Please select at least one file");
+      return;
+    }
+
+    // Check if all files have document names
+    const filesWithoutNames = docForm.files.filter(file => !file.docName.trim());
+    if (filesWithoutNames.length > 0) {
+      showErrorToast("Please provide document names for all files");
       return;
     }
 
@@ -280,61 +325,107 @@ const GenericDocumentManagement = () => {
         throw new Error("Unable to get user client path");
       }
 
-      // Upload file to Firebase Storage
       const safeEmail = getSafeEmail(userEmail);
-      const timestamp = Date.now();
-      const fileName = `${safeEmail}/clients/${clientPAN}/generic/${timestamp}_${docForm.file.name}`;
-      const fileRef = storageRef(storage, fileName);
-      
-      console.log("📤 Uploading file to storage:", fileName);
-      await uploadBytes(fileRef, docForm.file);
-      const fileUrl = await getDownloadURL(fileRef);
-      console.log("✅ File uploaded successfully");
+      let successCount = 0;
+      let errorCount = 0;
 
-      const docId = editingDocId || `generic_${timestamp}`;
-      const newDoc = {
-        name: docForm.docName,
-        docName: docForm.docName,
-        fileName: docForm.fileName,
-        fileUrl: fileUrl,
-        fileSize: docForm.file.size,
-        uploadedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      // Process each file
+      for (const fileObj of docForm.files) {
+        try {
+          // Skip if it's an existing document being edited without a new file
+          if (editingDocId && !fileObj.file) {
+            // Update existing document metadata only
+            const docId = editingDocId;
+            const updatedDoc = {
+              name: fileObj.docName,
+              docName: fileObj.docName,
+              updatedAt: new Date().toISOString(),
+            };
 
-      // Save to Firebase RTDB (now under years subcollection)
-      const docRef = rtdbRef(rtdb, `${userClientPath}/${clientPAN}/years/${selectedYear}/genericDocuments/${docId}`);
-      await set(docRef, newDoc);
-      console.log("✅ Saved to Firebase RTDB");
-      
-      // Also save to Firestore - genericDocuments as subcollection parallel to years
-      const clientDocRef = getClientDocRef(clientPAN);
-      if (clientDocRef) {
-        const genericDocsCollectionRef = collection(clientDocRef, 'genericDocuments');
-        const docRefFirestore = doc(genericDocsCollectionRef, docId);
-        
-        await firestoreHelpers.set(docRefFirestore, newDoc);
-        console.log("✅ Saved to Firestore genericDocuments subcollection");
+            // Update in Firebase RTDB
+            const docRef = rtdbRef(rtdb, `${userClientPath}/${clientPAN}/years/${selectedYear}/genericDocuments/${docId}`);
+            await set(docRef, updatedDoc);
+            
+            // Update in Firestore
+            const clientDocRef = getClientDocRef(clientPAN);
+            if (clientDocRef) {
+              const genericDocsCollectionRef = collection(clientDocRef, 'genericDocuments');
+              const docRefFirestore = doc(genericDocsCollectionRef, docId);
+              await firestoreHelpers.update(docRefFirestore, updatedDoc);
+            }
+            
+            successCount++;
+            continue;
+          }
+
+          if (!fileObj.file) continue;
+
+          // Upload file to Firebase Storage
+          const timestamp = Date.now();
+          const randomSuffix = Math.floor(Math.random() * 10000);
+          const fileName = `${safeEmail}/clients/${clientPAN}/generic/${timestamp}_${randomSuffix}_${fileObj.file.name}`;
+          const fileRef = storageRef(storage, fileName);
+          
+          console.log("📤 Uploading file to storage:", fileName);
+          await uploadBytes(fileRef, fileObj.file);
+          const fileUrl = await getDownloadURL(fileRef);
+          console.log("✅ File uploaded successfully");
+
+          const docId = editingDocId || `generic_${timestamp}_${randomSuffix}`;
+          const newDoc = {
+            name: fileObj.docName,
+            docName: fileObj.docName,
+            fileName: fileObj.fileName,
+            fileUrl: fileUrl,
+            fileSize: fileObj.file.size,
+            uploadedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          // Save to Firebase RTDB
+          const docRef = rtdbRef(rtdb, `${userClientPath}/${clientPAN}/years/${selectedYear}/genericDocuments/${docId}`);
+          await set(docRef, newDoc);
+          console.log("✅ Saved to Firebase RTDB");
+          
+          // Save to Firestore
+          const clientDocRef = getClientDocRef(clientPAN);
+          if (clientDocRef) {
+            const genericDocsCollectionRef = collection(clientDocRef, 'genericDocuments');
+            const docRefFirestore = doc(genericDocsCollectionRef, docId);
+            
+            await firestoreHelpers.set(docRefFirestore, newDoc);
+            console.log("✅ Saved to Firestore genericDocuments subcollection");
+          }
+
+          successCount++;
+        } catch (fileError) {
+          console.error(`❌ Error saving file ${fileObj.fileName}:`, fileError);
+          errorCount++;
+        }
       }
 
-      if (editingDocId) {
-        showSuccessToast(`Document "${docForm.docName}" updated successfully!`);
+      // Show appropriate success/error message
+      if (successCount > 0 && errorCount === 0) {
+        if (editingDocId) {
+          showSuccessToast(`Document updated successfully!`);
+        } else {
+          showSuccessToast(`${successCount} document${successCount > 1 ? 's' : ''} added successfully!`);
+        }
+      } else if (successCount > 0 && errorCount > 0) {
+        showSuccessToast(`${successCount} document${successCount > 1 ? 's' : ''} saved successfully. ${errorCount} failed.`);
       } else {
-        showSuccessToast(`Document "${docForm.docName}" added successfully!`);
+        showErrorToast("Failed to save documents. Please try again.");
       }
 
-      console.log("✅ Generic document saved successfully");
+      console.log("✅ Generic document operation completed");
       setShowDocForm(false);
       setDocForm({
-        docName: "",
-        fileName: "",
-        file: null,
-        localPreviewUrl: "",
+        files: [],
       });
       setEditingDocId(null);
     } catch (error) {
-      console.error("❌ Error saving generic document:", error);
-      showErrorToast(`Failed to save document: ${error.message}`);
+      console.error("❌ Error saving generic documents:", error);
+      showErrorToast(`Failed to save documents: ${error.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -474,16 +565,6 @@ const GenericDocumentManagement = () => {
         </Modal.Header>
         <Modal.Body>
           <Form>
-            <Form.Group className="mb-3">
-              <Form.Label><strong>Document Name *</strong></Form.Label>
-              <Form.Control
-                type="text"
-                placeholder="e.g., PAN Card, Aadhar Card, Registration Certificate"
-                value={docForm.docName}
-                onChange={(e) => setDocForm({ ...docForm, docName: e.target.value })}
-                autoFocus
-              />
-            </Form.Group>
             
             <Form.Group className="mb-3">
               <Form.Label><strong>Upload File *</strong></Form.Label>
@@ -511,16 +592,21 @@ const GenericDocumentManagement = () => {
                   type="file"
                   onChange={handleFileChange}
                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  multiple
                   style={{ display: 'none' }}
                 />
                 
-                {docForm.fileName ? (
+                {docForm.files.length > 0 ? (
                   <div>
                     <div style={{ fontSize: '3rem', marginBottom: '12px' }}>✅</div>
-                    <div className="fw-bold text-success mb-2">File Selected</div>
-                    <div className="text-muted">{docForm.fileName}</div>
+                    <div className="fw-bold text-success mb-2">
+                      {docForm.files.length} File{docForm.files.length > 1 ? 's' : ''} Selected
+                    </div>
+                    <div className="text-muted mb-2">
+                      {docForm.files.map(file => file.fileName).join(', ')}
+                    </div>
                     <div className="mt-2">
-                      <small className="text-primary">Click to change file</small>
+                      <small className="text-primary">Click to add more files</small>
                     </div>
                   </div>
                 ) : (
@@ -529,7 +615,7 @@ const GenericDocumentManagement = () => {
                       {isDragging ? '📥' : '📁'}
                     </div>
                     <div className="fw-bold mb-2">
-                      {isDragging ? 'Drop file here' : 'Drag & Drop file here'}
+                      {isDragging ? 'Drop files here' : 'Drag & Drop files here'}
                     </div>
                     <div className="text-muted mb-2">or</div>
                     <Button variant="outline-primary" size="sm">
@@ -544,7 +630,96 @@ const GenericDocumentManagement = () => {
               </Form.Text>
             </Form.Group>
 
-            {docForm.localPreviewUrl && (
+            {/* Selected Files List */}
+            {docForm.files.length > 0 && (
+              <div className="mb-3">
+                <Form.Label><strong>Selected Files ({docForm.files.length})</strong></Form.Label>
+                <div className="border rounded p-3" style={{ backgroundColor: '#f8f9fa', maxHeight: '400px', overflowY: 'auto' }}>
+                  {docForm.files.map((fileObj, index) => (
+                    <div key={fileObj.id} className="mb-3 p-3 border rounded bg-white">
+                      <div className="d-flex justify-content-between align-items-start mb-2">
+                        <div className="flex-grow-1">
+                          <div className="fw-bold text-primary mb-1">📎 {fileObj.fileName}</div>
+                          <div className="small text-muted">
+                            {fileObj.file ? `Size: ${(fileObj.file.size / 1024).toFixed(2)} KB` : 'Existing file'}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => handleRemoveFile(fileObj.id)}
+                          title="Remove file"
+                        >
+                          🗑️
+                        </Button>
+                      </div>
+                      
+                      {/* Document Name Input */}
+                      <Form.Group className="mb-2">
+                        <Form.Label className="small fw-semibold">Document Name *</Form.Label>
+                        <Form.Control
+                          type="text"
+                          placeholder="e.g., PAN Card, Aadhar Card, Registration Certificate"
+                          value={fileObj.docName}
+                          onChange={(e) => handleUpdateDocName(fileObj.id, e.target.value)}
+                          size="sm"
+                        />
+                      </Form.Group>
+
+                      {/* File Preview */}
+                      {fileObj.localPreviewUrl && (
+                        <div className="mt-2">
+                          <div className="small fw-semibold mb-1">Preview:</div>
+                          <div className="border rounded p-2" style={{ backgroundColor: '#f8f9fa' }}>
+                            {fileObj.fileName?.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) ? (
+                              <div className="text-center">
+                                <img 
+                                  src={fileObj.localPreviewUrl} 
+                                  alt="Preview" 
+                                  style={{ 
+                                    maxWidth: '100%', 
+                                    maxHeight: '200px',
+                                    objectFit: 'contain',
+                                    borderRadius: '4px'
+                                  }} 
+                                />
+                              </div>
+                            ) : fileObj.fileName?.match(/\.pdf$/i) ? (
+                              <div className="text-center">
+                                <iframe 
+                                  src={fileObj.localPreviewUrl} 
+                                  style={{ 
+                                    width: '100%', 
+                                    height: '200px', 
+                                    border: 'none',
+                                    borderRadius: '4px'
+                                  }} 
+                                  title="PDF Preview"
+                                />
+                                <div className="mt-1 text-muted small">
+                                  <i className="bi bi-file-pdf"></i> PDF Document Preview
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center p-3">
+                                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>
+                                  {fileObj.fileName?.match(/\.doc|\.docx$/i) ? '📝' : '📄'}
+                                </div>
+                                <div className="fw-bold mb-1">{fileObj.fileName}</div>
+                                <div className="text-muted small">Preview not available</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Legacy preview section - keeping for backward compatibility but it won't show */}
+            {false && docForm.localPreviewUrl && (
               <div className="mb-3">
                 <Form.Label><strong>Preview</strong></Form.Label>
                 <div className="border rounded p-2" style={{ backgroundColor: '#f8f9fa' }}>
@@ -600,7 +775,7 @@ const GenericDocumentManagement = () => {
           <Button 
             variant="primary" 
             onClick={handleSaveDocument}
-            disabled={!docForm.docName || !docForm.file || isSaving}
+            disabled={docForm.files.length === 0 || docForm.files.some(file => !file.docName.trim()) || isSaving}
           >
             {isSaving ? (
               <>
@@ -608,7 +783,7 @@ const GenericDocumentManagement = () => {
                 Saving...
               </>
             ) : (
-              editingDocId ? '✏️ Update Document' : '➕ Add Document'
+              editingDocId ? '✏️ Update Document' : `➕ Add ${docForm.files.length} Document${docForm.files.length > 1 ? 's' : ''}`
             )}
           </Button>
         </Modal.Footer>

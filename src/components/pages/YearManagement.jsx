@@ -71,8 +71,16 @@ const YearManagement = () => {
           // Get years from the client's years array
           const clientYears = updatedClient.years || [];
           
-          // Sort years in descending order
-          clientYears.sort((a, b) => parseInt(b) - parseInt(a));
+          // Sort years in descending order (handle both "2028-29" and "2028" formats)
+          clientYears.sort((a, b) => {
+            const getStartYear = (yearStr) => {
+              if (yearStr.includes('-')) {
+                return parseInt(yearStr.split('-')[0]);
+              }
+              return parseInt(yearStr);
+            };
+            return getStartYear(b) - getStartYear(a);
+          });
           setYears(clientYears);
           console.log("📅 Years from Firestore:", clientYears);
         } else {
@@ -326,9 +334,12 @@ const YearManagement = () => {
       if (year >= 1900 && year <= 2100) {
         setIsAddingYear(true);
         try {
+          // Format year as "2028-29" format
+          const formattedYear = formatYear(newYear);
+          
           // Check if year already exists
-          if (years.includes(newYear.toString())) {
-            showErrorToast(`Year ${newYear} already exists for this client.`);
+          if (years.includes(formattedYear)) {
+            showErrorToast(`Year ${formattedYear} already exists for this client.`);
             return;
           }
           
@@ -341,19 +352,20 @@ const YearManagement = () => {
           }
           
           console.log("➕ Adding year for client:", clientName, "(PAN:", clientPAN, ")");
+          console.log("📅 Formatted year:", formattedYear);
           
           // Create year document in Firestore
           // Structure: {safeEmail}/user/clients/{clientPAN}/years/{year}
           const yearData = {
-            year: newYear.toString(),
+            year: formattedYear,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             documentCount: 0,
             status: "active"
           };
           
-          // Get year document reference using client PAN
-          const yearDocRef = getYearDocRef(clientPAN, newYear);
+          // Get year document reference using client PAN with formatted year
+          const yearDocRef = getYearDocRef(clientPAN, formattedYear);
           if (!yearDocRef) {
             throw new Error("Unable to get year document reference");
           }
@@ -369,21 +381,39 @@ const YearManagement = () => {
             const currentUserData = currentClient || client;
             const existingYears = currentUserData?.years || [];
             
-            if (!existingYears.includes(newYear.toString())) {
-              const updatedYears = [...existingYears, newYear.toString()].sort((a, b) => parseInt(b) - parseInt(a));
+            if (!existingYears.includes(formattedYear)) {
+              const updatedYears = [...existingYears, formattedYear].sort((a, b) => {
+                // Custom sort for year ranges like "2028-29"
+                const getStartYear = (yearStr) => {
+                  if (yearStr.includes('-')) {
+                    return parseInt(yearStr.split('-')[0]);
+                  }
+                  return parseInt(yearStr);
+                };
+                return getStartYear(b) - getStartYear(a);
+              });
               await firestoreHelpers.update(clientDocRef, { years: updatedYears });
               console.log("📅 Updated client's years array in Firestore for PAN:", clientPAN, "Years:", updatedYears);
             }
           }
           
-          showSuccessToast(`Year ${newYear} added successfully!`);
-          console.log(`✅ Year ${newYear} added successfully to Firestore`);
+          showSuccessToast(`Year ${formattedYear} added successfully!`);
+          console.log(`✅ Year ${formattedYear} added successfully to Firestore`);
           
           // Manually update local years state to ensure UI updates immediately
           const currentUserData = currentClient || client;
           const existingYears = currentUserData?.years || [];
-          if (!existingYears.includes(newYear.toString())) {
-            const updatedYears = [...existingYears, newYear.toString()].sort((a, b) => parseInt(b) - parseInt(a));
+          if (!existingYears.includes(formattedYear)) {
+            const updatedYears = [...existingYears, formattedYear].sort((a, b) => {
+              // Custom sort for year ranges like "2028-29"
+              const getStartYear = (yearStr) => {
+                if (yearStr.includes('-')) {
+                  return parseInt(yearStr.split('-')[0]);
+                }
+                return parseInt(yearStr);
+              };
+              return getStartYear(b) - getStartYear(a);
+            });
             setYears(updatedYears);
             console.log("🔄 Manually updated local years state:", updatedYears);
           }

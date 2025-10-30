@@ -133,8 +133,49 @@ const Dashboard = ({ goToClient, goToReports }) => {
   useEffect(() => {
     if (clients.length > 0) {
       fetchAllDocuments(clients);
+      fetchAllYears(clients); // Also fetch years separately
     }
   }, [clients, getClientYearsRef, getYearDocumentsRef]);
+
+  // Fetch all years from Firestore years subcollection
+  const fetchAllYears = async (clientsList) => {
+    if (!clientsList || clientsList.length === 0) return;
+
+    try {
+      console.log("📅 Fetching years from Firestore subcollections...");
+      
+      for (const client of clientsList) {
+        const clientPAN = client.id; // PAN is used as document ID
+        
+        // Get years collection for this client
+        const yearsRef = getClientYearsRef(clientPAN);
+        if (!yearsRef) continue;
+        
+        try {
+          // Get all years for this client from subcollection
+          const yearsSnapshot = await firestoreHelpers.getCollection(yearsRef);
+          console.log(`📅 Found ${yearsSnapshot.length} years in subcollection for ${client.name}`);
+          
+          // Update client's years array if it doesn't match subcollection
+          if (yearsSnapshot.length > 0) {
+            const subcollectionYears = yearsSnapshot.map(yearDoc => yearDoc.id);
+            const clientYears = client.years || [];
+            
+            // Check if there are years in subcollection not in client.years
+            const missingYears = subcollectionYears.filter(year => !clientYears.includes(year));
+            if (missingYears.length > 0) {
+              console.log(`📅 Found missing years in client.years for ${client.name}:`, missingYears);
+              // Note: We don't update the client here, just log for debugging
+            }
+          }
+        } catch (yearError) {
+          console.log(`📅 No years subcollection found for client ${client.name}`);
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error fetching years:", error);
+    }
+  };
 
   // Compute document-based stats using fetched documents
   const docStats = useMemo(() => {
@@ -155,11 +196,63 @@ const Dashboard = ({ goToClient, goToReports }) => {
       byYear[year] = (byYear[year] || 0) + 1;
       total += 1;
     });
+
+    // Also check clients directly for year-based structure
+    clients.forEach((client) => {
+      // Check for direct year properties in client (like 2024, 2023, etc.)
+      Object.keys(client).forEach((key) => {
+        // Check if key is a year (4 digits) or year range (like 2024-25)
+        if (/^\d{4}(-\d{2})?$/.test(key)) {
+          const yearData = client[key];
+          if (yearData && typeof yearData === 'object') {
+            // Count documents in this year
+            const yearDocuments = yearData.documents || {};
+            const realDocs = Object.values(yearDocuments).filter(doc => 
+              doc.fileName !== "placeholder.txt" &&
+              !(doc.docName || doc.name || "").includes("Initial Setup")
+            );
+            
+            if (realDocs.length > 0) {
+              byYear[key] = (byYear[key] || 0) + realDocs.length;
+              total += realDocs.length;
+            }
+          }
+        }
+      });
+
+      // IMPORTANT: Check years array property - this is where YearManagement stores years
+      if (client.years && Array.isArray(client.years)) {
+        client.years.forEach(yearId => {
+          // Initialize year with 0 documents if not already counted
+          if (!byYear[yearId]) {
+            byYear[yearId] = 0;
+          }
+        });
+      }
+
+      // Check client.documents for year information
+      if (client.documents) {
+        Object.values(client.documents).forEach((doc) => {
+          // Skip placeholder documents
+          if (doc.fileName === "placeholder.txt" || 
+              (doc.docName && doc.docName.includes("Initial Setup")) ||
+              (doc.name && doc.name.includes("Initial Setup"))) {
+            return;
+          }
+          
+          const year = String(doc?.year || "Unknown");
+          if (!allDocuments.find(d => d.id === doc.id)) { // Avoid double counting
+            byYear[year] = (byYear[year] || 0) + 1;
+            total += 1;
+          }
+        });
+      }
+    });
     
     const thisYear = byYear[String(currentYear)] || 0;
     const lastYear = byYear[String(currentYear - 1)] || 0;
     return { total, thisYear, lastYear, byYear, currentYear };
-  }, [allDocuments]);
+  }, [allDocuments, clients]);
 
   // Recent clients (latest 5 by creation/update time)
   const recentClients = useMemo(() => {
@@ -176,7 +269,24 @@ const Dashboard = ({ goToClient, goToReports }) => {
   }, [clients]);
   const yearOptions = useMemo(() => {
     const ys = Object.keys(docStats.byYear || {}).filter((y) => y && y !== "Unknown");
-    ys.sort((a, b) => Number(b) - Number(a));
+    
+    // Custom sort function to handle both individual years and year ranges
+    ys.sort((a, b) => {
+      // Extract the starting year from year strings
+      const getStartYear = (yearStr) => {
+        if (/^\d{4}-\d{2}$/.test(yearStr)) {
+          // Year range like "2024-25"
+          return parseInt(yearStr.split('-')[0]);
+        } else if (/^\d{4}$/.test(yearStr)) {
+          // Individual year like "2024"
+          return parseInt(yearStr);
+        }
+        return 0; // For any other format
+      };
+      
+      return getStartYear(b) - getStartYear(a); // Sort descending
+    });
+    
     return ys;
   }, [docStats]);
 
@@ -363,7 +473,20 @@ const Dashboard = ({ goToClient, goToReports }) => {
                   </thead>
                   <tbody>
                     {Object.entries(docStats.byYear)
-                      .sort((a,b)=> Number(b[0]) - Number(a[0]))
+                      .sort((a, b) => {
+                        // Extract the starting year from year strings for proper sorting
+                        const getStartYear = (yearStr) => {
+                          if (/^\d{4}-\d{2}$/.test(yearStr)) {
+                            // Year range like "2024-25"
+                            return parseInt(yearStr.split('-')[0]);
+                          } else if (/^\d{4}$/.test(yearStr)) {
+                            // Individual year like "2024"
+                            return parseInt(yearStr);
+                          }
+                          return 0; // For any other format
+                        };
+                        return getStartYear(b[0]) - getStartYear(a[0]); // Sort descending
+                      })
                       .slice(0, 5)
                       .map(([y, count], index) => (
                         <tr key={y} style={{ 

@@ -33,14 +33,7 @@ const DocumentManagement = () => {
   const [viewingDoc, setViewingDoc] = useState(null);
   const [editingDocId, setEditingDocId] = useState(null);
   const [docForm, setDocForm] = useState({
-    documents: [{
-      docName: "",
-      year: "", // No default year - will be set when user selects a year
-      fileName: "",
-      file: null,
-      localPreviewUrl: "",
-    }],
-    selectedDocIndex: 0,
+    files: [], // Array of file objects: {file, fileName, docName, year, localPreviewUrl}
   });
   
   // Toast states
@@ -56,6 +49,9 @@ const DocumentManagement = () => {
   
   // Loading state for document list
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
+  
+  // Drag and drop states
+  const [isDragging, setIsDragging] = useState(false);
 
   // This useEffect is replaced by the Firestore-based loading in the later useEffect
 
@@ -83,14 +79,7 @@ const DocumentManagement = () => {
     console.log("Valid filter year:", validFilterYear);
     
     setDocForm({
-      documents: [{
-        docName: "",
-        year: "", // No default year - user must select a year
-        fileName: "",
-        file: null,
-        localPreviewUrl: "",
-      }],
-      selectedDocIndex: 0,
+      files: [],
     });
     setEditingDocId(null);
     setShowDocForm(true);
@@ -119,14 +108,15 @@ const DocumentManagement = () => {
 
   const handleEditDocument = (doc) => {
     setDocForm({
-      documents: [{
+      files: [{
+        file: null,
+        fileName: doc.fileName || "",
         docName: doc.name || doc.docName || "",
         year: doc.year || "",
-        fileName: doc.fileName || "",
-        file: null,
         localPreviewUrl: doc.fileData || "",
+        id: `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        existingDoc: true
       }],
-      selectedDocIndex: 0,
     });
     setEditingDocId(doc.id);
     setShowDocForm(true);
@@ -184,26 +174,125 @@ const DocumentManagement = () => {
     }
   };
 
-  const handleFileChange = (e, docIndex) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const updatedDocuments = [...docForm.documents];
-        updatedDocuments[docIndex] = {
-          ...updatedDocuments[docIndex],
+  const handleFileChange = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    if (selectedFiles.length > 0) {
+      const newFiles = selectedFiles.map(file => {
+        // Extract file name without extension for document name
+        const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+        
+        return {
           file: file,
           fileName: file.name,
-          localPreviewUrl: event.target.result,
+          docName: fileNameWithoutExt,
+          year: filterYear || "", // Use current filter year as default
+          localPreviewUrl: URL.createObjectURL(file),
+          id: `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}` // Temporary ID for tracking
         };
-        setDocForm({ ...docForm, documents: updatedDocuments });
-      };
-      reader.readAsDataURL(file);
+      });
+      
+      setDocForm({
+        ...docForm,
+        files: [...docForm.files, ...newFiles],
+      });
     }
   };
 
+  // Drag and drop handlers
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles && droppedFiles.length > 0) {
+      const allowedTypes = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+      const validFiles = [];
+      const invalidFiles = [];
+      
+      droppedFiles.forEach(file => {
+        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+        if (allowedTypes.includes(fileExtension)) {
+          validFiles.push(file);
+        } else {
+          invalidFiles.push(file.name);
+        }
+      });
+      
+      if (validFiles.length > 0) {
+        const newFiles = validFiles.map(file => {
+          // Extract file name without extension for document name
+          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+          
+          return {
+            file: file,
+            fileName: file.name,
+            docName: fileNameWithoutExt,
+            year: filterYear || "", // Use current filter year as default
+            localPreviewUrl: URL.createObjectURL(file),
+            id: `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}` // Temporary ID for tracking
+          };
+        });
+        
+        setDocForm({
+          ...docForm,
+          files: [...docForm.files, ...newFiles],
+        });
+      }
+      
+      if (invalidFiles.length > 0) {
+        showErrorToast(`Invalid file types: ${invalidFiles.join(', ')}. Please upload PDF, JPG, PNG, DOC, or DOCX files.`);
+      }
+    }
+  };
+
+  // Function to remove a file from the selection
+  const handleRemoveFile = (fileId) => {
+    setDocForm({
+      ...docForm,
+      files: docForm.files.filter(file => file.id !== fileId)
+    });
+  };
+
+  // Function to update document name for a specific file
+  const handleUpdateDocName = (fileId, newDocName) => {
+    setDocForm({
+      ...docForm,
+      files: docForm.files.map(file => 
+        file.id === fileId ? { ...file, docName: newDocName } : file
+      )
+    });
+  };
+
+  // Function to update year for a specific file
+  const handleUpdateYear = (fileId, newYear) => {
+    setDocForm({
+      ...docForm,
+      files: docForm.files.map(file => 
+        file.id === fileId ? { ...file, year: newYear } : file
+      )
+    });
+  };
+
   const handleSaveDocument = async () => {
-    setIsSaving(true); // Start loading
+    setIsSaving(true);
     try {
       // Safety check for client
       if (!client || !client.id) {
@@ -213,105 +302,157 @@ const DocumentManagement = () => {
         return;
       }
 
-      const validDocuments = docForm.documents.filter(doc => doc.docName && doc.file);
-      
-      if (validDocuments.length === 0) {
-        showErrorToast("Please add at least one document with a name and file.");
+      if (docForm.files.length === 0) {
+        showErrorToast("Please select at least one file");
         setIsSaving(false);
         return;
       }
 
-      // Process each document
-      for (const doc of validDocuments) {
-        let fileUrl = null;
-        let fileName = doc.fileName;
+      // Check if all files have document names and years
+      const filesWithoutNames = docForm.files.filter(file => !file.docName.trim());
+      const filesWithoutYears = docForm.files.filter(file => !file.year.trim());
+      
+      if (filesWithoutNames.length > 0) {
+        showErrorToast("Please provide document names for all files");
+        setIsSaving(false);
+        return;
+      }
+      
+      if (filesWithoutYears.length > 0) {
+        showErrorToast("Please provide year for all files");
+        setIsSaving(false);
+        return;
+      }
 
-        // Upload file to Firebase Storage if file exists
-        if (doc.file) {
-          try {
-            console.log("📤 Uploading file to Firebase Storage...");
-            const timestamp = Date.now();
-            const fileExtension = doc.file.name.split('.').pop();
-            const storageFileName = `${timestamp}_${doc.docName.replace(/[^a-zA-Z0-9]/g, '_')}.${fileExtension}`;
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Process each file
+      for (const fileObj of docForm.files) {
+        try {
+          // Skip if it's an existing document being edited without a new file
+          if (editingDocId && !fileObj.file) {
+            // Update existing document metadata only
+            const clientPAN = client.pan || client.id;
+            const documentsRef = getYearDocumentsRef(clientPAN, fileObj.year);
+            if (!documentsRef) {
+              throw new Error("Unable to get documents collection reference");
+            }
             
-            // Create storage reference
-            const clientName = client.name || client.id;
-            const fileRef = storageRef(storage, `documents/${clientName}/${doc.year}/${storageFileName}`);
+            const updatedDoc = {
+              name: fileObj.docName,
+              docName: fileObj.docName,
+              year: fileObj.year,
+              updatedAt: new Date().toISOString(),
+            };
+
+            const docRef = firestoreDoc(documentsRef, editingDocId);
+            await firestoreHelpers.update(docRef, updatedDoc);
             
-            // Upload file
-            const snapshot = await uploadBytes(fileRef, doc.file);
-            fileUrl = await getDownloadURL(snapshot.ref);
-            fileName = storageFileName;
-            
-            console.log("✅ File uploaded successfully:", fileUrl);
-          } catch (uploadError) {
-            console.error("❌ File upload failed:", uploadError);
-            // Continue without file URL but save document metadata
+            successCount++;
+            continue;
           }
-        }
 
-        // Ensure year is set - use filterYear if doc.year is empty
-        const documentYear = doc.year || filterYear || new Date().getFullYear().toString();
-        
-        // Only store base64 data for small files (under 500KB) to avoid Firestore size limits
-        const maxFileDataSize = 500 * 1024; // 500KB
-        const shouldStoreFileData = doc.file?.size && doc.file.size < maxFileDataSize;
-        
-        const docData = {
-          name: doc.docName,
-          docName: doc.docName,
-          year: documentYear,
-          fileName: doc.fileName,
-          fileUrl: fileUrl, // Firebase Storage URL - primary source for file access
-          fileData: shouldStoreFileData ? doc.localPreviewUrl : null, // Only for small files
-          fileSize: doc.file?.size,
-          fileType: doc.file?.type,
-          uploadedAt: new Date().toISOString(),
-          uploadedBy: "admin"
-        };
-        
-        console.log(`📊 File size: ${doc.file?.size} bytes, storing fileData: ${shouldStoreFileData}`);
+          if (!fileObj.file) continue;
 
-        // Get client PAN for Firestore structure (PAN is used as document ID)
-        const clientPAN = client.pan || client.id;
-        const clientName = client.name;
-        console.log("💾 Saving document for client:", clientName, "(PAN:", clientPAN, ")");
-        console.log("💾 Document data:", docData);
-        
-        // Get Firestore documents collection reference using client PAN
-        const documentsRef = getYearDocumentsRef(clientPAN, documentYear);
-        if (!documentsRef) {
-          throw new Error("Unable to get documents collection reference");
-        }
-        
-        if (editingDocId) {
-          // Update existing document in Firestore
-          const docRef = firestoreDoc(documentsRef, editingDocId);
-          await firestoreHelpers.update(docRef, docData);
-          console.log("✅ Document updated in Firestore:", editingDocId);
-        } else {
-          // Add new document to Firestore
-          const docRef = await documentHelpers.createDocument(documentsRef, docData);
-          console.log("✅ New document added to Firestore:", docRef.id, "in year:", documentYear);
+          let fileUrl = null;
+          let fileName = fileObj.fileName;
+
+          // Upload file to Firebase Storage if file exists
+          if (fileObj.file) {
+            try {
+              console.log("📤 Uploading file to Firebase Storage...");
+              const timestamp = Date.now();
+              const randomSuffix = Math.floor(Math.random() * 10000);
+              const fileExtension = fileObj.file.name.split('.').pop();
+              const storageFileName = `${timestamp}_${randomSuffix}_${fileObj.docName.replace(/[^a-zA-Z0-9]/g, '_')}.${fileExtension}`;
+              
+              // Create storage reference
+              const clientName = client.name || client.id;
+              const fileRef = storageRef(storage, `documents/${clientName}/${fileObj.year}/${storageFileName}`);
+              
+              // Upload file
+              const snapshot = await uploadBytes(fileRef, fileObj.file);
+              fileUrl = await getDownloadURL(snapshot.ref);
+              fileName = storageFileName;
+              
+              console.log("✅ File uploaded successfully:", fileUrl);
+            } catch (uploadError) {
+              console.error("❌ File upload failed:", uploadError);
+              // Continue without file URL but save document metadata
+            }
+          }
+
+          // Only store base64 data for small files (under 500KB) to avoid Firestore size limits
+          const maxFileDataSize = 500 * 1024; // 500KB
+          const shouldStoreFileData = fileObj.file?.size && fileObj.file.size < maxFileDataSize;
+          
+          const docData = {
+            name: fileObj.docName,
+            docName: fileObj.docName,
+            year: fileObj.year,
+            fileName: fileObj.fileName,
+            fileUrl: fileUrl, // Firebase Storage URL - primary source for file access
+            fileData: shouldStoreFileData ? fileObj.localPreviewUrl : null, // Only for small files
+            fileSize: fileObj.file?.size,
+            fileType: fileObj.file?.type,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: "admin"
+          };
+          
+          console.log(`📊 File size: ${fileObj.file?.size} bytes, storing fileData: ${shouldStoreFileData}`);
+
+          // Get client PAN for Firestore structure (PAN is used as document ID)
+          const clientPAN = client.pan || client.id;
+          const clientName = client.name;
+          console.log("💾 Saving document for client:", clientName, "(PAN:", clientPAN, ")");
+          console.log("💾 Document data:", docData);
+          
+          // Get Firestore documents collection reference using client PAN
+          const documentsRef = getYearDocumentsRef(clientPAN, fileObj.year);
+          if (!documentsRef) {
+            throw new Error("Unable to get documents collection reference");
+          }
+          
+          if (editingDocId) {
+            // Update existing document in Firestore
+            const docRef = firestoreDoc(documentsRef, editingDocId);
+            await firestoreHelpers.update(docRef, docData);
+            console.log("✅ Document updated in Firestore:", editingDocId);
+          } else {
+            // Add new document to Firestore
+            const docRef = await documentHelpers.createDocument(documentsRef, docData);
+            console.log("✅ New document added to Firestore:", docRef.id, "in year:", fileObj.year);
+          }
+
+          successCount++;
+        } catch (fileError) {
+          console.error(`❌ Error saving file ${fileObj.fileName}:`, fileError);
+          errorCount++;
         }
       }
 
-      showSuccessToast(`${validDocuments.length} document(s) saved successfully!`);
+      // Show appropriate success/error message
+      if (successCount > 0 && errorCount === 0) {
+        if (editingDocId) {
+          showSuccessToast(`Document updated successfully!`);
+        } else {
+          showSuccessToast(`${successCount} document${successCount > 1 ? 's' : ''} saved successfully!`);
+        }
+      } else if (successCount > 0 && errorCount > 0) {
+        showSuccessToast(`${successCount} document${successCount > 1 ? 's' : ''} saved successfully. ${errorCount} failed.`);
+      } else {
+        showErrorToast("Failed to save documents. Please try again.");
+      }
+
       setShowDocForm(false);
       
       // Reset form
       setDocForm({
-        documents: [{
-          docName: "",
-          year: "",
-          fileName: "",
-          file: null,
-          localPreviewUrl: "",
-        }],
-        selectedDocIndex: 0,
+        files: [],
       });
       setEditingDocId(null);
-      setIsSaving(false); // Stop loading on success
+      setIsSaving(false);
       
       // Refresh documents list from Firestore
       if (filterYear) {
@@ -330,7 +471,7 @@ const DocumentManagement = () => {
     } catch (error) {
       console.error("❌ Error saving document:", error);
       showErrorToast("Failed to save document. Please try again.");
-      setIsSaving(false); // Stop loading on error
+      setIsSaving(false);
     }
   };
 
@@ -648,98 +789,171 @@ const DocumentManagement = () => {
         <Modal.Body>
           <Form>
             <Form.Group className="mb-3">
-              <Form.Label><strong>📄 Document Name</strong></Form.Label>
-              <Form.Control
-                type="text"
-                placeholder="Enter document name"
-                value={docForm.documents[0]?.docName || ""}
-                onChange={(e) => {
-                  const updatedDocs = [...docForm.documents];
-                  updatedDocs[0] = { ...updatedDocs[0], docName: e.target.value };
-                  setDocForm({ ...docForm, documents: updatedDocs });
+              <Form.Label><strong>📎 Upload Files</strong></Form.Label>
+              
+              {/* Drag and Drop Zone */}
+              <div
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                style={{
+                  border: isDragging ? '3px dashed #007bff' : '2px dashed #dee2e6',
+                  borderRadius: '12px',
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  backgroundColor: isDragging ? '#e7f3ff' : '#f8f9fa',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  position: 'relative',
                 }}
-              />
-            </Form.Group>
-            
-            <Form.Group className="mb-3">
-              <Form.Label><strong>📎 Upload File</strong></Form.Label>
-              <Form.Control
-                type="file"
-                onChange={(e) => handleFileChange(e, 0)}
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-              />
-              <Form.Text className="text-muted">
-                Files larger than 500KB will be stored in cloud storage and may not show inline preview.
+                onClick={() => document.getElementById('fileInput').click()}
+              >
+                <input
+                  id="fileInput"
+                  type="file"
+                  onChange={handleFileChange}
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  multiple
+                  style={{ display: 'none' }}
+                />
+                
+                {docForm.files.length > 0 ? (
+                  <div>
+                    <div style={{ fontSize: '3rem', marginBottom: '12px' }}>✅</div>
+                    <div className="fw-bold text-success mb-2">
+                      {docForm.files.length} File{docForm.files.length > 1 ? 's' : ''} Selected
+                    </div>
+                    <div className="text-muted mb-2">
+                      {docForm.files.map(file => file.fileName).join(', ')}
+                    </div>
+                    <div className="mt-2">
+                      <small className="text-primary">Click to add more files</small>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: '3rem', marginBottom: '12px' }}>
+                      {isDragging ? '📥' : '📁'}
+                    </div>
+                    <div className="fw-bold mb-2">
+                      {isDragging ? 'Drop files here' : 'Drag & Drop files here'}
+                    </div>
+                    <div className="text-muted mb-2">or</div>
+                    <Button variant="outline-primary" size="sm">
+                      Browse Files
+                    </Button>
+                  </div>
+                )}
+              </div>
+              
+              <Form.Text className="text-muted d-block mt-2">
+                <i className="bi bi-info-circle"></i> Supported formats: PDF, JPG, PNG, DOC, DOCX. Files larger than 500KB will be stored in cloud storage.
               </Form.Text>
             </Form.Group>
 
-            {docForm.documents[0]?.localPreviewUrl && (
+            {/* Selected Files List */}
+            {docForm.files.length > 0 && (
               <div className="mb-3">
-                <strong>📎 Document Preview:</strong>
-                <div className="border p-3 mt-2 rounded" style={{ maxHeight: '400px', overflow: 'auto', backgroundColor: '#f8f9fa' }}>
-                  {(() => {
-                    const doc = docForm.documents[0];
-                    const fileType = doc.file?.type || doc.fileType || '';
-                    
-                    if (fileType.startsWith('image/')) {
-                      return (
-                        <div className="text-center">
-                          <img 
-                            src={doc.localPreviewUrl} 
-                            alt={doc.fileName}
-                            style={{ 
-                              maxWidth: '100%', 
-                              maxHeight: '350px', 
-                              objectFit: 'contain',
-                              borderRadius: '5px',
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                            }}
-                          />
-                          <div className="mt-2 small text-muted">
-                            <strong>File:</strong> {doc.fileName}
+                <Form.Label><strong>Selected Files ({docForm.files.length})</strong></Form.Label>
+                <div className="border rounded p-3" style={{ backgroundColor: '#f8f9fa', maxHeight: '400px', overflowY: 'auto' }}>
+                  {docForm.files.map((fileObj, index) => (
+                    <div key={fileObj.id} className="mb-3 p-3 border rounded bg-white">
+                      <div className="d-flex justify-content-between align-items-start mb-2">
+                        <div className="flex-grow-1">
+                          <div className="fw-bold text-primary mb-1">📎 {fileObj.fileName}</div>
+                          <div className="small text-muted">
+                            {fileObj.file ? `Size: ${(fileObj.file.size / 1024).toFixed(2)} KB` : 'Existing file'}
                           </div>
                         </div>
-                      );
-                    } else if (fileType.includes('pdf')) {
-                      return (
-                        <div>
-                          <div className="text-center mb-2">
-                            <iframe 
-                              src={doc.localPreviewUrl}
-                              width="100%" 
-                              height="300px"
-                              style={{ 
-                                border: 'none', 
-                                borderRadius: '5px',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                              }}
-                              title={doc.fileName}
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => handleRemoveFile(fileObj.id)}
+                          title="Remove file"
+                        >
+                          🗑️
+                        </Button>
+                      </div>
+                      
+                      {/* Document Name Input */}
+                      <Row className="mb-2">
+                        <Col md={6}>
+                          <Form.Group>
+                            <Form.Label className="small fw-semibold">Document Name *</Form.Label>
+                            <Form.Control
+                              type="text"
+                              placeholder="e.g., Balance Sheet, Income Statement"
+                              value={fileObj.docName}
+                              onChange={(e) => handleUpdateDocName(fileObj.id, e.target.value)}
+                              size="sm"
                             />
-                          </div>
-                          <div className="text-center small text-muted">
-                            <strong>PDF File:</strong> {doc.fileName}
+                          </Form.Group>
+                        </Col>
+                        <Col md={6}>
+                          <Form.Group>
+                            <Form.Label className="small fw-semibold">Year *</Form.Label>
+                            <Form.Control
+                              type="number"
+                              placeholder="2024"
+                              value={fileObj.year}
+                              onChange={(e) => handleUpdateYear(fileObj.id, e.target.value)}
+                              min="1900"
+                              max="2100"
+                              size="sm"
+                            />
+                          </Form.Group>
+                        </Col>
+                      </Row>
+
+                      {/* File Preview */}
+                      {fileObj.localPreviewUrl && (
+                        <div className="mt-2">
+                          <div className="small fw-semibold mb-1">Preview:</div>
+                          <div className="border rounded p-2" style={{ backgroundColor: '#f8f9fa' }}>
+                            {fileObj.fileName?.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) ? (
+                              <div className="text-center">
+                                <img 
+                                  src={fileObj.localPreviewUrl} 
+                                  alt="Preview" 
+                                  style={{ 
+                                    maxWidth: '100%', 
+                                    maxHeight: '200px',
+                                    objectFit: 'contain',
+                                    borderRadius: '4px'
+                                  }} 
+                                />
+                              </div>
+                            ) : fileObj.fileName?.match(/\.pdf$/i) ? (
+                              <div className="text-center">
+                                <iframe 
+                                  src={fileObj.localPreviewUrl} 
+                                  style={{ 
+                                    width: '100%', 
+                                    height: '200px', 
+                                    border: 'none',
+                                    borderRadius: '4px'
+                                  }} 
+                                  title="PDF Preview"
+                                />
+                                <div className="mt-1 text-muted small">
+                                  <i className="bi bi-file-pdf"></i> PDF Document Preview
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center p-3">
+                                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>
+                                  {fileObj.fileName?.match(/\.doc|\.docx$/i) ? '📝' : '📄'}
+                                </div>
+                                <div className="fw-bold mb-1">{fileObj.fileName}</div>
+                                <div className="text-muted small">Preview not available</div>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      );
-                    } else {
-                      return (
-                        <div className="text-center p-4">
-                          <div className="mb-3">
-                            <i className="bi bi-file-earmark" style={{ fontSize: '3rem', color: '#6c757d' }}></i>
-                          </div>
-                          <div>
-                            <strong>📄 File:</strong> {doc.fileName}
-                          </div>
-                          <div className="small text-muted mt-1">
-                            {fileType || 'Unknown file type'}
-                          </div>
-                          <div className="small text-warning mt-2">
-                            <em>Preview not available for this file type</em>
-                          </div>
-                        </div>
-                      );
-                    }
-                  })()}
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -752,7 +966,7 @@ const DocumentManagement = () => {
           <Button 
             variant="primary" 
             onClick={handleSaveDocument}
-            disabled={isSaving}
+            disabled={docForm.files.length === 0 || docForm.files.some(file => !file.docName.trim() || !file.year.trim()) || isSaving}
           >
             {isSaving ? (
               <>
@@ -760,7 +974,7 @@ const DocumentManagement = () => {
                 Saving...
               </>
             ) : (
-              editingDocId ? 'Update Document' : 'Save Document'
+              editingDocId ? 'Update Document' : `Save ${docForm.files.length} Document${docForm.files.length > 1 ? 's' : ''}`
             )}
           </Button>
         </Modal.Footer>

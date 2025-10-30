@@ -7,7 +7,7 @@ admin.initializeApp();
  * Sends a notification ONLY to the clients of a specific CA firm.
  * This is called from the CA Firm's admin panel.
  */
-exports.sendCaFirmBroadcast = functions.https.onCall(async (data, context) => {
+exports.sendAdminBroadcast = functions.https.onCall(async (data, context) => {
   try {
     // --- Debug Logging ---
     console.log("🔍 Function called with context:", {
@@ -91,17 +91,31 @@ exports.sendCaFirmBroadcast = functions.https.onCall(async (data, context) => {
 
   // 3. Collect the FCM tokens for this firm's clients
   const tokens = [];
+  console.log("📋 Processing clients from snapshot...");
+  
   firmClientsSnapshot.forEach((doc) => {
     const clientData = doc.data();
+    console.log(`🔍 Client ${doc.id}:`, {
+      hasToken: !!clientData.fcmToken,
+      tokenPreview: clientData.fcmToken ? clientData.fcmToken.substring(0, 20) + "..." : "none",
+      clientName: clientData.name || "unknown",
+      email: clientData.email || "unknown"
+    });
+    
     if (clientData.fcmToken) {
       tokens.push(clientData.fcmToken);
-      console.log("✅ Token found for client:", doc.id);
+      console.log("✅ Token added for client:", doc.id);
     } else {
-      console.log("⚠️ No token for client:", doc.id);
+      console.log("⚠️ No FCM token for client:", doc.id);
     }
   });
 
   console.log("🎯 Total FCM tokens collected:", tokens.length);
+  console.log("📱 Token details:", tokens.map((token, idx) => ({
+    index: idx,
+    tokenStart: token.substring(0, 20),
+    tokenLength: token.length
+  })));
 
   if (tokens.length === 0) {
     console.warn("⚠️ No clients with FCM tokens found");
@@ -166,13 +180,54 @@ exports.sendCaFirmBroadcast = functions.https.onCall(async (data, context) => {
     totalTokens: tokens.length
   });
 
+  // Log detailed results for each token and clean up invalid ones
+  const invalidTokenCleanupPromises = [];
+  
+  response.responses.forEach((resp, idx) => {
+    const tokenPreview = tokens[idx].substring(0, 20) + "...";
+    if (resp.success) {
+      console.log(`✅ Token ${idx} (${tokenPreview}): SUCCESS - MessageId: ${resp.messageId}`);
+    } else {
+      console.error(`❌ Token ${idx} (${tokenPreview}): FAILED`);
+      console.error(`   Error Code: ${resp.error?.code}`);
+      console.error(`   Error Message: ${resp.error?.message}`);
+      
+      // If token is invalid/unregistered, remove it from database
+      if (resp.error?.code === 'messaging/registration-token-not-registered' || 
+          resp.error?.code === 'messaging/invalid-registration-token') {
+        
+        console.log(`🧹 Cleaning up invalid token for client at index ${idx}`);
+        
+        // Find the client document and remove the invalid token
+        const clientDocs = [];
+        firmClientsSnapshot.forEach((doc) => clientDocs.push(doc));
+        
+        if (clientDocs[idx]) {
+          const cleanupPromise = admin.firestore()
+            .collection(clientsPath)
+            .doc(clientDocs[idx].id)
+            .update({ fcmToken: admin.firestore.FieldValue.delete() })
+            .then(() => {
+              console.log(`✅ Removed invalid token from client: ${clientDocs[idx].id}`);
+            })
+            .catch((error) => {
+              console.error(`❌ Failed to remove invalid token from client ${clientDocs[idx].id}:`, error);
+            });
+          
+          invalidTokenCleanupPromises.push(cleanupPromise);
+        }
+      }
+    }
+  });
+  
+  // Wait for all cleanup operations to complete
+  if (invalidTokenCleanupPromises.length > 0) {
+    console.log(`🧹 Cleaning up ${invalidTokenCleanupPromises.length} invalid tokens...`);
+    await Promise.allSettled(invalidTokenCleanupPromises);
+  }
+
   if (response.failureCount > 0) {
     console.error(`❌ Failed to send to ${response.failureCount} clients`);
-    response.responses.forEach((resp, idx) => {
-      if (!resp.success) {
-        console.error(`Token ${idx} failed:`, resp.error?.message);
-      }
-    });
   }
 
   const successMessage = `Notification sent to ${response.successCount} of ${tokens.length} of your clients.`;

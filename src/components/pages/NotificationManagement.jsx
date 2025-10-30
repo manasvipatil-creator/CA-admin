@@ -204,11 +204,6 @@ const NotificationManagement = () => {
         console.log("🎫 Auth Token exists:", !!token);
         console.log("🎫 Token preview:", token.substring(0, 20) + "...");
         
-        // Create callable function with explicit options
-        const sendBroadcast = httpsCallable(functions, "sendCaFirmBroadcast", {
-          timeout: 60000, // 60 seconds timeout
-        });
-        
         // Prepare payload with optional image
         // IMPORTANT: Sanitize email to match Firestore path (dots -> underscores)
         const sanitizedEmail = userEmail.replace(/\./g, "_");
@@ -228,6 +223,12 @@ const NotificationManagement = () => {
         }
         
         console.log("🚀 Calling function...");
+        
+        // Create callable function with explicit options
+        const sendBroadcast = httpsCallable(functions, "sendAdminBroadcast", {
+          timeout: 60000, // 60 seconds timeout
+        });
+        
         const result = await sendBroadcast(payload);
         console.log("📥 Function response:", result);
         
