@@ -143,7 +143,7 @@ const GenericDocumentManagement = () => {
         file: null,
         fileName: doc.fileName || "",
         docName: doc.name || doc.docName || "",
-        localPreviewUrl: doc.fileData || "",
+        localPreviewUrl: doc.fileUrl || "", // Use fileUrl for existing documents
         existingDoc: true
       }],
     });
@@ -287,6 +287,11 @@ const GenericDocumentManagement = () => {
 
   // Function to remove a file from the selection
   const handleRemoveFile = (fileId) => {
+    const fileToRemove = docForm.files.find(file => file.id === fileId);
+    if (fileToRemove && fileToRemove.localPreviewUrl) {
+      URL.revokeObjectURL(fileToRemove.localPreviewUrl);
+    }
+    
     setDocForm({
       ...docForm,
       files: docForm.files.filter(file => file.id !== fileId)
@@ -404,6 +409,13 @@ const GenericDocumentManagement = () => {
         }
       }
 
+      // Clean up local preview URLs
+      docForm.files.forEach(fileObj => {
+        if (fileObj.localPreviewUrl && fileObj.file) {
+          URL.revokeObjectURL(fileObj.localPreviewUrl);
+        }
+      });
+
       // Show appropriate success/error message
       if (successCount > 0 && errorCount === 0) {
         if (editingDocId) {
@@ -429,6 +441,32 @@ const GenericDocumentManagement = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Clean up local URLs when component unmounts or modal closes
+  useEffect(() => {
+    return () => {
+      // Clean up local preview URLs when component unmounts
+      if (docForm.files && docForm.files.length > 0) {
+        docForm.files.forEach(fileObj => {
+          if (fileObj.localPreviewUrl && fileObj.file) {
+            URL.revokeObjectURL(fileObj.localPreviewUrl);
+          }
+        });
+      }
+    };
+  }, []);
+
+  const handleCloseDocForm = () => {
+    // Clean up local preview URLs when modal closes
+    if (docForm.files && docForm.files.length > 0) {
+      docForm.files.forEach(fileObj => {
+        if (fileObj.localPreviewUrl && fileObj.file) {
+          URL.revokeObjectURL(fileObj.localPreviewUrl);
+        }
+      });
+    }
+    setShowDocForm(false);
   };
 
   return (
@@ -477,9 +515,6 @@ const GenericDocumentManagement = () => {
               <th style={{ padding: '16px 20px', fontWeight: '600', fontSize: '0.95rem', border: 'none' }}>
                 📄 Document Name
               </th>
-              <th style={{ padding: '16px 20px', fontWeight: '600', fontSize: '0.95rem', border: 'none' }}>
-                📎 File Name
-              </th>
               <th style={{ padding: '16px 20px', fontWeight: '600', fontSize: '0.95rem', border: 'none', textAlign: 'center' }}>
                 📅 Uploaded Date
               </th>
@@ -491,7 +526,7 @@ const GenericDocumentManagement = () => {
           <tbody>
             {isLoadingDocuments ? (
               <tr>
-                <td colSpan="4" style={{ padding: '60px 20px', textAlign: 'center', border: 'none' }}>
+                <td colSpan="3" style={{ padding: '60px 20px', textAlign: 'center', border: 'none' }}>
                   <div className="d-flex flex-column align-items-center">
                     <div className="spinner-border text-primary mb-3" role="status" style={{ width: '2.5rem', height: '2.5rem' }}>
                       <span className="visually-hidden">Loading...</span>
@@ -508,9 +543,6 @@ const GenericDocumentManagement = () => {
                 }}>
                   <td style={{ padding: '16px 20px', border: 'none', borderBottom: '1px solid #e9ecef' }}>
                     <strong>{doc.name || doc.docName}</strong>
-                  </td>
-                  <td style={{ padding: '16px 20px', border: 'none', borderBottom: '1px solid #e9ecef' }}>
-                    <Badge bg="light" text="dark">{doc.fileName}</Badge>
                   </td>
                   <td style={{ padding: '16px 20px', textAlign: 'center', border: 'none', borderBottom: '1px solid #e9ecef' }}>
                     {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'N/A'}
@@ -547,7 +579,7 @@ const GenericDocumentManagement = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="4" style={{ padding: '40px 20px', textAlign: 'center', border: 'none' }}>
+                <td colSpan="3" style={{ padding: '40px 20px', textAlign: 'center', border: 'none' }}>
                   <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📂</div>
                   <div style={{ fontWeight: '500', marginBottom: '8px' }}>No generic documents found</div>
                   <div style={{ fontSize: '0.9rem', color: '#adb5bd' }}>Click "Add Generic Document" to get started</div>
@@ -559,7 +591,7 @@ const GenericDocumentManagement = () => {
       </div>
 
       {/* Add/Edit Document Modal */}
-      <Modal show={showDocForm} onHide={() => setShowDocForm(false)} centered size="lg">
+      <Modal show={showDocForm} onHide={handleCloseDocForm} centered size="lg">
         <Modal.Header closeButton>
           <Modal.Title>{editingDocId ? '✏️ Edit' : '➕ Add'} Generic Document</Modal.Title>
         </Modal.Header>
@@ -666,110 +698,16 @@ const GenericDocumentManagement = () => {
                         />
                       </Form.Group>
 
-                      {/* File Preview */}
-                      {fileObj.localPreviewUrl && (
-                        <div className="mt-2">
-                          <div className="small fw-semibold mb-1">Preview:</div>
-                          <div className="border rounded p-2" style={{ backgroundColor: '#f8f9fa' }}>
-                            {fileObj.fileName?.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) ? (
-                              <div className="text-center">
-                                <img 
-                                  src={fileObj.localPreviewUrl} 
-                                  alt="Preview" 
-                                  style={{ 
-                                    maxWidth: '100%', 
-                                    maxHeight: '200px',
-                                    objectFit: 'contain',
-                                    borderRadius: '4px'
-                                  }} 
-                                />
-                              </div>
-                            ) : fileObj.fileName?.match(/\.pdf$/i) ? (
-                              <div className="text-center">
-                                <iframe 
-                                  src={fileObj.localPreviewUrl} 
-                                  style={{ 
-                                    width: '100%', 
-                                    height: '200px', 
-                                    border: 'none',
-                                    borderRadius: '4px'
-                                  }} 
-                                  title="PDF Preview"
-                                />
-                                <div className="mt-1 text-muted small">
-                                  <i className="bi bi-file-pdf"></i> PDF Document Preview
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-center p-3">
-                                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>
-                                  {fileObj.fileName?.match(/\.doc|\.docx$/i) ? '📝' : '📄'}
-                                </div>
-                                <div className="fw-bold mb-1">{fileObj.fileName}</div>
-                                <div className="text-muted small">Preview not available</div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                      {/* Preview section has been removed as requested */}
                     </div>
                   ))}
-                </div>
-              </div>
-            )}
-
-            {/* Legacy preview section - keeping for backward compatibility but it won't show */}
-            {false && docForm.localPreviewUrl && (
-              <div className="mb-3">
-                <Form.Label><strong>Preview</strong></Form.Label>
-                <div className="border rounded p-2" style={{ backgroundColor: '#f8f9fa' }}>
-                  {docForm.fileName?.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) ? (
-                    <div className="text-center">
-                      <img 
-                        src={docForm.localPreviewUrl} 
-                        alt="Preview" 
-                        style={{ 
-                          maxWidth: '100%', 
-                          maxHeight: '400px',
-                          objectFit: 'contain',
-                          borderRadius: '8px'
-                        }} 
-                      />
-                    </div>
-                  ) : docForm.fileName?.match(/\.pdf$/i) ? (
-                    <div className="text-center">
-                      <iframe 
-                        src={docForm.localPreviewUrl} 
-                        style={{ 
-                          width: '100%', 
-                          height: '400px', 
-                          border: 'none',
-                          borderRadius: '8px'
-                        }} 
-                        title="PDF Preview"
-                      />
-                      <div className="mt-2 text-muted small">
-                        <i className="bi bi-file-pdf"></i> PDF Document Preview
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center p-4">
-                      <div style={{ fontSize: '4rem', marginBottom: '12px' }}>
-                        {docForm.fileName?.match(/\.doc|\.docx$/i) ? '📝' : '📄'}
-                      </div>
-                      <div className="fw-bold mb-1">{docForm.fileName}</div>
-                      <div className="text-muted small">
-                        {docForm.file ? `Size: ${(docForm.file.size / 1024).toFixed(2)} KB` : 'Preview not available'}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
           </Form>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowDocForm(false)}>
+          <Button variant="secondary" onClick={handleCloseDocForm}>
             Cancel
           </Button>
           <Button 
@@ -809,10 +747,22 @@ const GenericDocumentManagement = () => {
               </div>
               {viewingDoc.fileUrl && (
                 <div className="text-center">
-                  {viewingDoc.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? (
-                    <img src={viewingDoc.fileUrl} alt={viewingDoc.name} style={{ maxWidth: '100%', maxHeight: '500px' }} />
-                  ) : viewingDoc.fileName?.match(/\.pdf$/i) ? (
-                    <iframe src={viewingDoc.fileUrl} style={{ width: '100%', height: '500px', border: 'none' }} title="PDF Preview" />
+                  {viewingDoc.fileName?.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) ? (
+                    <img 
+                      src={viewingDoc.fileUrl} 
+                      alt={viewingDoc.name} 
+                      style={{ maxWidth: '100%', maxHeight: '500px' }} 
+                      onError={(e) => {
+                        console.log('Image failed to load, showing download option');
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : viewingDoc.fileName?.toLowerCase().match(/\.pdf$/) ? (
+                    <iframe 
+                      src={viewingDoc.fileUrl} 
+                      style={{ width: '100%', height: '500px', border: 'none' }} 
+                      title="PDF Preview" 
+                    />
                   ) : (
                     <div className="p-5">
                       <div style={{ fontSize: '4rem' }}>📄</div>

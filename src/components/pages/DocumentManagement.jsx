@@ -906,52 +906,7 @@ const DocumentManagement = () => {
                         </Col>
                       </Row>
 
-                      {/* File Preview */}
-                      {fileObj.localPreviewUrl && (
-                        <div className="mt-2">
-                          <div className="small fw-semibold mb-1">Preview:</div>
-                          <div className="border rounded p-2" style={{ backgroundColor: '#f8f9fa' }}>
-                            {fileObj.fileName?.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) ? (
-                              <div className="text-center">
-                                <img 
-                                  src={fileObj.localPreviewUrl} 
-                                  alt="Preview" 
-                                  style={{ 
-                                    maxWidth: '100%', 
-                                    maxHeight: '200px',
-                                    objectFit: 'contain',
-                                    borderRadius: '4px'
-                                  }} 
-                                />
-                              </div>
-                            ) : fileObj.fileName?.match(/\.pdf$/i) ? (
-                              <div className="text-center">
-                                <iframe 
-                                  src={fileObj.localPreviewUrl} 
-                                  style={{ 
-                                    width: '100%', 
-                                    height: '200px', 
-                                    border: 'none',
-                                    borderRadius: '4px'
-                                  }} 
-                                  title="PDF Preview"
-                                />
-                                <div className="mt-1 text-muted small">
-                                  <i className="bi bi-file-pdf"></i> PDF Document Preview
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-center p-3">
-                                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>
-                                  {fileObj.fileName?.match(/\.doc|\.docx$/i) ? '📝' : '📄'}
-                                </div>
-                                <div className="fw-bold mb-1">{fileObj.fileName}</div>
-                                <div className="text-muted small">Preview not available</div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                      {/* Preview section has been removed as requested */}
                     </div>
                   ))}
                 </div>

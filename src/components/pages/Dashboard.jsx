@@ -297,32 +297,7 @@ const Dashboard = ({ goToClient, goToReports }) => {
   return (
     <div className="container-fluid">
       {/* Hero Header */}
-      <div className="mb-4 p-4 rounded-4 shadow-lg" style={{
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        color: "#fff",
-        border: '1px solid rgba(255,255,255,0.1)',
-        backdropFilter: 'blur(10px)'
-      }}>
-        <div>
-          <h1 className="mb-2" style={{
-            fontWeight: '700',
-            fontSize: '2.2rem',
-            textShadow: '0 2px 10px rgba(0,0,0,0.2)'
-          }}>Welcome, {userEmail}</h1>
-          <p className="mb-0" style={{
-            fontSize: '1.1rem',
-            opacity: '0.9'
-          }}>Your Personal CA firm dashboard</p>
-          {lastUpdated && (
-            <p className="mb-0 mt-2" style={{
-              fontSize: '0.9rem',
-              opacity: '0.7'
-            }}>
-              Last updated: {lastUpdated.toLocaleTimeString()}
-            </p>
-          )}
-        </div>
-      </div>
+     
 
       {/* KPI Cards */}
       <Row className="g-4 mb-5 justify-content-center">
