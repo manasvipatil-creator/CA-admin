@@ -53,7 +53,7 @@ const GenericDocumentManagement = () => {
     const loadGenericDocuments = () => {
       try {
         setIsLoadingDocuments(true);
-        const clientPAN = client.pan || client.id;
+        const clientContact = client.contact || client.id;
         const userClientPath = getUserClientPath();
         
         if (!userClientPath) {
@@ -63,8 +63,8 @@ const GenericDocumentManagement = () => {
         }
 
         // Subscribe to real-time updates from Firebase RTDB
-        // Path now includes years subcollection: userClientPath/clientPAN/years/generic/genericDocuments
-        const genericDocsRef = rtdbRef(rtdb, `${userClientPath}/${clientPAN}/years/${selectedYear}/genericDocuments`);
+        // Path now includes years subcollection: userClientPath/clientContact/years/generic/genericDocuments
+        const genericDocsRef = rtdbRef(rtdb, `${userClientPath}/${clientContact}/years/${selectedYear}/genericDocuments`);
         
         const unsubscribe = onValue(genericDocsRef, (snapshot) => {
           if (snapshot.exists()) {
@@ -157,7 +157,7 @@ const GenericDocumentManagement = () => {
       try {
         console.log("🗑️ Deleting generic document:", document.id);
         
-        const clientPAN = client.pan || client.id;
+        const clientContact = client.contact || client.id;
         const userClientPath = getUserClientPath();
         
         if (!userClientPath) {
@@ -165,12 +165,12 @@ const GenericDocumentManagement = () => {
         }
 
         // Delete from Firebase RTDB (now under years subcollection)
-        const docRef = rtdbRef(rtdb, `${userClientPath}/${clientPAN}/years/${selectedYear}/genericDocuments/${document.id}`);
+        const docRef = rtdbRef(rtdb, `${userClientPath}/${clientContact}/years/${selectedYear}/genericDocuments/${document.id}`);
         await remove(docRef);
         console.log("🗑️ Deleted from Firebase RTDB");
         
         // Also delete from Firestore - genericDocuments as subcollection parallel to years
-        const clientDocRef = getClientDocRef(clientPAN);
+        const clientDocRef = getClientDocRef(clientContact);
         if (clientDocRef) {
           const genericDocsCollectionRef = collection(clientDocRef, 'genericDocuments');
           const docToDeleteRef = doc(genericDocsCollectionRef, document.id);
@@ -323,7 +323,7 @@ const GenericDocumentManagement = () => {
 
     setIsSaving(true);
     try {
-      const clientPAN = client.pan || client.id;
+      const clientContact = client.contact || client.id;
       const userClientPath = getUserClientPath();
       
       if (!userClientPath) {
@@ -348,11 +348,11 @@ const GenericDocumentManagement = () => {
             };
 
             // Update in Firebase RTDB
-            const docRef = rtdbRef(rtdb, `${userClientPath}/${clientPAN}/years/${selectedYear}/genericDocuments/${docId}`);
+            const docRef = rtdbRef(rtdb, `${userClientPath}/${clientContact}/years/${selectedYear}/genericDocuments/${docId}`);
             await set(docRef, updatedDoc);
             
             // Update in Firestore
-            const clientDocRef = getClientDocRef(clientPAN);
+            const clientDocRef = getClientDocRef(clientContact);
             if (clientDocRef) {
               const genericDocsCollectionRef = collection(clientDocRef, 'genericDocuments');
               const docRefFirestore = doc(genericDocsCollectionRef, docId);
@@ -368,7 +368,7 @@ const GenericDocumentManagement = () => {
           // Upload file to Firebase Storage
           const timestamp = Date.now();
           const randomSuffix = Math.floor(Math.random() * 10000);
-          const fileName = `${safeEmail}/clients/${clientPAN}/generic/${timestamp}_${randomSuffix}_${fileObj.file.name}`;
+          const fileName = `${safeEmail}/clients/${clientContact}/generic/${timestamp}_${randomSuffix}_${fileObj.file.name}`;
           const fileRef = storageRef(storage, fileName);
           
           console.log("📤 Uploading file to storage:", fileName);
@@ -388,12 +388,12 @@ const GenericDocumentManagement = () => {
           };
 
           // Save to Firebase RTDB
-          const docRef = rtdbRef(rtdb, `${userClientPath}/${clientPAN}/years/${selectedYear}/genericDocuments/${docId}`);
+          const docRef = rtdbRef(rtdb, `${userClientPath}/${clientContact}/years/${selectedYear}/genericDocuments/${docId}`);
           await set(docRef, newDoc);
           console.log("✅ Saved to Firebase RTDB");
           
           // Save to Firestore
-          const clientDocRef = getClientDocRef(clientPAN);
+          const clientDocRef = getClientDocRef(clientContact);
           if (clientDocRef) {
             const genericDocsCollectionRef = collection(clientDocRef, 'genericDocuments');
             const docRefFirestore = doc(genericDocsCollectionRef, docId);

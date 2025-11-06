@@ -82,10 +82,10 @@ const Dashboard = ({ goToClient, goToReports }) => {
       const allDocs = [];
       
       for (const client of clientsList) {
-        const clientPAN = client.id; // PAN is used as document ID
+        const clientContact = client.id; // Contact number is used as document ID
         
         // Get years collection for this client
-        const yearsRef = getClientYearsRef(clientPAN);
+        const yearsRef = getClientYearsRef(clientContact);
         if (!yearsRef) continue;
         
         try {
@@ -96,7 +96,7 @@ const Dashboard = ({ goToClient, goToReports }) => {
             const year = yearDoc.id;
             
             // Get documents for this year
-            const documentsRef = getYearDocumentsRef(clientPAN, year);
+            const documentsRef = getYearDocumentsRef(clientContact, year);
             if (!documentsRef) continue;
             
             try {
@@ -108,7 +108,7 @@ const Dashboard = ({ goToClient, goToReports }) => {
                   ...doc,
                   clientId: client.id,
                   clientName: client.name,
-                  clientPAN: clientPAN,
+                  clientContact: clientContact,
                   year: year
                 });
               });
@@ -145,10 +145,10 @@ const Dashboard = ({ goToClient, goToReports }) => {
       console.log("📅 Fetching years from Firestore subcollections...");
       
       for (const client of clientsList) {
-        const clientPAN = client.id; // PAN is used as document ID
+        const clientContact = client.id; // Contact number is used as document ID
         
         // Get years collection for this client
-        const yearsRef = getClientYearsRef(clientPAN);
+        const yearsRef = getClientYearsRef(clientContact);
         if (!yearsRef) continue;
         
         try {

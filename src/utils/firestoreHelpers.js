@@ -182,12 +182,28 @@ export const firestoreHelpers = {
 // Client Operations
 export const clientHelpers = {
   async createClient(clientsRef, clientData) {
-    // Validate PAN number
+    // Validate contact number
+    if (!clientData.contact || clientData.contact.trim().length === 0) {
+      throw new Error("Contact number is required");
+    }
+
+    // Sanitize contact number for use as document ID (remove all non-digits)
+    const sanitizedContact = clientData.contact.replace(/\D/g, '');
+
+    // Validate contact format (must be exactly 10 digits starting with 6-9)
+    if (sanitizedContact.length !== 10) {
+      throw new Error("Contact number must be exactly 10 digits");
+    }
+    if (!/^[6-9]\d{9}$/.test(sanitizedContact)) {
+      throw new Error("Contact number must start with 6, 7, 8, or 9");
+    }
+
+    // Validate PAN number (still required as a field)
     if (!clientData.pan || clientData.pan.trim().length === 0) {
       throw new Error("PAN number is required");
     }
 
-    // Sanitize PAN for use as document ID (uppercase, remove special chars)
+    // Sanitize PAN (uppercase, remove special chars)
     const sanitizedPAN = clientData.pan
       .toString()
       .toUpperCase()
@@ -199,13 +215,13 @@ export const clientHelpers = {
       throw new Error("Invalid PAN format. Expected format: ABCDE1234F");
     }
 
-    console.log("🆔 Creating client with PAN as ID:", sanitizedPAN);
+    console.log("🆔 Creating client with Contact as ID:", sanitizedContact);
 
-    // Use PAN as document ID
-    const clientDocRef = doc(clientsRef, sanitizedPAN);
+    // Use Contact number as document ID
+    const clientDocRef = doc(clientsRef, sanitizedContact);
     return await firestoreHelpers.set(clientDocRef, {
       name: clientData.name,
-      contact: clientData.contact,
+      contact: sanitizedContact, // Store sanitized contact
       pan: sanitizedPAN, // Store sanitized PAN
       email: clientData.email,
       firmId: clientData.firmId, // Add firmId here

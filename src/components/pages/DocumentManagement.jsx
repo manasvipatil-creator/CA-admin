@@ -128,16 +128,16 @@ const DocumentManagement = () => {
       try {
         console.log("🗑️ Deleting document:", doc.id, "from client:", client);
         
-        // Get client PAN for Firestore operations
-        const clientPAN = client.pan || client.id;
-        if (!clientPAN) {
-          throw new Error("Client PAN is required to delete document");
+        // Get client contact for Firestore operations
+        const clientContact = client.contact || client.id;
+        if (!clientContact) {
+          throw new Error("Client Contact is required to delete document");
         }
         
-        console.log("🔑 Using client PAN:", clientPAN, "Year:", doc.year);
+        console.log("🔑 Using client Contact:", clientContact, "Year:", doc.year);
         
         // Delete document from Firestore
-        const documentsRef = getYearDocumentsRef(clientPAN, doc.year);
+        const documentsRef = getYearDocumentsRef(clientContact, doc.year);
         if (!documentsRef) {
           throw new Error("Unable to get documents collection reference");
         }
@@ -155,7 +155,7 @@ const DocumentManagement = () => {
         setTimeout(async () => {
           try {
             if (filterYear) {
-              const documentsRef = getYearDocumentsRef(clientPAN, filterYear);
+              const documentsRef = getYearDocumentsRef(clientContact, filterYear);
               if (documentsRef) {
                 const docs = await documentHelpers.getDocuments(documentsRef);
                 setDocuments(docs);
@@ -333,8 +333,8 @@ const DocumentManagement = () => {
           // Skip if it's an existing document being edited without a new file
           if (editingDocId && !fileObj.file) {
             // Update existing document metadata only
-            const clientPAN = client.pan || client.id;
-            const documentsRef = getYearDocumentsRef(clientPAN, fileObj.year);
+            const clientContact = client.contact || client.id;
+            const documentsRef = getYearDocumentsRef(clientContact, fileObj.year);
             if (!documentsRef) {
               throw new Error("Unable to get documents collection reference");
             }
@@ -402,14 +402,14 @@ const DocumentManagement = () => {
           
           console.log(`📊 File size: ${fileObj.file?.size} bytes, storing fileData: ${shouldStoreFileData}`);
 
-          // Get client PAN for Firestore structure (PAN is used as document ID)
-          const clientPAN = client.pan || client.id;
+          // Get client Contact for Firestore structure (Contact is used as document ID)
+          const clientContact = client.contact || client.id;
           const clientName = client.name;
-          console.log("💾 Saving document for client:", clientName, "(PAN:", clientPAN, ")");
+          console.log("💾 Saving document for client:", clientName, "(Contact:", clientContact, ")");
           console.log("💾 Document data:", docData);
           
-          // Get Firestore documents collection reference using client PAN
-          const documentsRef = getYearDocumentsRef(clientPAN, fileObj.year);
+          // Get Firestore documents collection reference using client Contact
+          const documentsRef = getYearDocumentsRef(clientContact, fileObj.year);
           if (!documentsRef) {
             throw new Error("Unable to get documents collection reference");
           }
@@ -456,8 +456,8 @@ const DocumentManagement = () => {
       
       // Refresh documents list from Firestore
       if (filterYear) {
-        const clientPAN = client.pan || client.id;
-        const documentsRef = getYearDocumentsRef(clientPAN, filterYear);
+        const clientContact = client.contact || client.id;
+        const documentsRef = getYearDocumentsRef(clientContact, filterYear);
         if (documentsRef) {
           try {
             const docs = await documentHelpers.getDocuments(documentsRef);
@@ -481,8 +481,8 @@ const DocumentManagement = () => {
       const loadDocuments = async () => {
         setIsLoadingDocuments(true);
         try {
-          const clientPAN = client.pan || client.id;
-          const documentsRef = getYearDocumentsRef(clientPAN, filterYear);
+          const clientContact = client.contact || client.id;
+          const documentsRef = getYearDocumentsRef(clientContact, filterYear);
           if (documentsRef) {
             const docs = await documentHelpers.getDocuments(documentsRef);
             setDocuments(docs);

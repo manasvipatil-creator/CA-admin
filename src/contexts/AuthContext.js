@@ -88,35 +88,35 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Get specific client document reference (NEW SUPERNODE STRUCTURE - NO DUMMY NODES)
-  const getClientDocRef = (clientPAN, email = userEmail) => {
+  const getClientDocRef = (clientContact, email = userEmail) => {
     const safeEmail = getSafeEmail(email);
-    if (!safeEmail || !clientPAN) return null;
-    // New path: ca_admin/{safeEmail}/clients/{clientPAN} (4 segments - even) ✅
-    return doc(db, SUPERNODE_ROOT, safeEmail, 'clients', clientPAN);
+    if (!safeEmail || !clientContact) return null;
+    // New path: ca_admin/{safeEmail}/clients/{clientContact} (4 segments - even) ✅
+    return doc(db, SUPERNODE_ROOT, safeEmail, 'clients', clientContact);
   };
 
   // Get client's years collection reference (NEW SUPERNODE STRUCTURE - NO DUMMY NODES)
-  const getClientYearsRef = (clientPAN, email = userEmail) => {
+  const getClientYearsRef = (clientContact, email = userEmail) => {
     const safeEmail = getSafeEmail(email);
-    if (!safeEmail || !clientPAN) return null;
-    // New path: ca_admin/{safeEmail}/clients/{clientPAN}/years (5 segments - odd) ✅
-    return collection(db, SUPERNODE_ROOT, safeEmail, 'clients', clientPAN, 'years');
+    if (!safeEmail || !clientContact) return null;
+    // New path: ca_admin/{safeEmail}/clients/{clientContact}/years (5 segments - odd) ✅
+    return collection(db, SUPERNODE_ROOT, safeEmail, 'clients', clientContact, 'years');
   };
 
   // Get specific year document reference (NEW SUPERNODE STRUCTURE - NO DUMMY NODES)
-  const getYearDocRef = (clientPAN, year, email = userEmail) => {
+  const getYearDocRef = (clientContact, year, email = userEmail) => {
     const safeEmail = getSafeEmail(email);
-    if (!safeEmail || !clientPAN || !year) return null;
-    // New path: ca_admin/{safeEmail}/clients/{clientPAN}/years/{year} (6 segments - even) ✅
-    return doc(db, SUPERNODE_ROOT, safeEmail, 'clients', clientPAN, 'years', year.toString());
+    if (!safeEmail || !clientContact || !year) return null;
+    // New path: ca_admin/{safeEmail}/clients/{clientContact}/years/{year} (6 segments - even) ✅
+    return doc(db, SUPERNODE_ROOT, safeEmail, 'clients', clientContact, 'years', year.toString());
   };
 
   // Get specific year documents collection reference (NEW SUPERNODE STRUCTURE - NO DUMMY NODES)
-  const getYearDocumentsRef = (clientPAN, year, email = userEmail) => {
+  const getYearDocumentsRef = (clientContact, year, email = userEmail) => {
     const safeEmail = getSafeEmail(email);
-    if (!safeEmail || !clientPAN || !year) return null;
-    // New path: ca_admin/{safeEmail}/clients/{clientPAN}/years/{year}/documents (7 segments - odd) ✅
-    return collection(db, SUPERNODE_ROOT, safeEmail, 'clients', clientPAN, 'years', year.toString(), 'documents');
+    if (!safeEmail || !clientContact || !year) return null;
+    // New path: ca_admin/{safeEmail}/clients/{clientContact}/years/{year}/documents (7 segments - odd) ✅
+    return collection(db, SUPERNODE_ROOT, safeEmail, 'clients', clientContact, 'years', year.toString(), 'documents');
   };
 
   // Legacy paths for backward compatibility (if needed during migration)

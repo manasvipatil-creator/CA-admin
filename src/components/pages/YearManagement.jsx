@@ -41,22 +41,22 @@ const YearManagement = () => {
   };
   // Set up real-time listener for client data updates using Firestore
   useEffect(() => {
-    if (!client?.id && !client?.pan) {
+    if (!client?.id && !client?.contact) {
       setIsLoadingYears(false);
       return;
     }
     
     setIsLoadingYears(true);
     
-    // Use client PAN as document ID (client.id should be the PAN)
-    const clientPAN = client.pan || client.id;
+    // Use client contact as document ID (client.id should be the contact number)
+    const clientContact = client.contact || client.id;
     const clientName = client.name;
-    console.log("🔄 Setting up Firestore listener for client:", clientName, "(PAN:", clientPAN, ")");
+    console.log("🔄 Setting up Firestore listener for client:", clientName, "(Contact:", clientContact, ")");
     console.log("👤 Client data:", client);
     
-    const clientDocRef = getClientDocRef(clientPAN);
+    const clientDocRef = getClientDocRef(clientContact);
     if (!clientDocRef) {
-      console.log("⚠️ No client document reference available for PAN:", clientPAN);
+      console.log("⚠️ No client document reference available for Contact:", clientContact);
       setIsLoadingYears(false);
       return;
     }
@@ -66,7 +66,7 @@ const YearManagement = () => {
       (updatedClient) => {
         if (updatedClient) {
           console.log("📊 Client data updated from Firestore:", updatedClient);
-          setCurrentClient({ ...updatedClient, id: clientPAN });
+          setCurrentClient({ ...updatedClient, id: clientContact });
           
           // Get years from the client's years array
           const clientYears = updatedClient.years || [];
@@ -84,20 +84,20 @@ const YearManagement = () => {
           setYears(clientYears);
           console.log("📅 Years from Firestore:", clientYears);
         } else {
-          console.log("❌ Client not found in Firestore for PAN:", clientPAN);
+          console.log("❌ Client not found in Firestore for Contact:", clientContact);
           setYears([]);
         }
         setIsLoadingYears(false);
       },
       (error) => {
-        console.error("❌ Firestore client listener error for PAN:", clientPAN, error);
+        console.error("❌ Firestore client listener error for Contact:", clientContact, error);
         setYears([]);
         setIsLoadingYears(false);
       }
     );
     
     return () => {
-      console.log("🔄 Cleaning up real-time listener for PAN:", clientPAN);
+      console.log("🔄 Cleaning up real-time listener for Contact:", clientContact);
       unsubscribe();
     };
   }, [client]);
@@ -125,10 +125,10 @@ const YearManagement = () => {
   const refreshYearsFromFirestore = async () => {
     try {
       setIsLoadingYears(true);
-      const clientPAN = client?.pan || client?.id;
-      if (!clientPAN) return;
+      const clientContact = client?.contact || client?.id;
+      if (!clientContact) return;
       
-      const clientDocRef = getClientDocRef(clientPAN);
+      const clientDocRef = getClientDocRef(clientContact);
       const clientDoc = await firestoreHelpers.get(clientDocRef);
       
       if (clientDoc) {
@@ -173,16 +173,16 @@ const YearManagement = () => {
             return;
           }
           
-          const clientPAN = currentClient?.pan || client?.pan || client?.id;
-          if (!clientPAN) {
-            throw new Error("Client PAN is required to edit a year");
+          const clientContact = currentClient?.contact || client?.contact || client?.id;
+          if (!clientContact) {
+            throw new Error("Client Contact is required to edit a year");
           }
           
-          console.log("✏️ Editing year for client PAN:", clientPAN, "from", originalYear, "to", editYear);
+          console.log("✏️ Editing year for client Contact:", clientContact, "from", originalYear, "to", editYear);
           
           // Get old year document and its documents
-          const oldYearDocRef = getYearDocRef(clientPAN, originalYear);
-          const oldYearDocumentsRef = getYearDocumentsRef(clientPAN, originalYear);
+          const oldYearDocRef = getYearDocRef(clientContact, originalYear);
+          const oldYearDocumentsRef = getYearDocumentsRef(clientContact, originalYear);
           
           if (!oldYearDocRef || !oldYearDocumentsRef) {
             throw new Error("Unable to get year references");
@@ -194,8 +194,8 @@ const YearManagement = () => {
           
           if (oldYearDoc) {
             // Get new year document
-            const newYearDocRef = getYearDocRef(clientPAN, editYear);
-            const newYearDocumentsRef = getYearDocumentsRef(clientPAN, editYear);
+            const newYearDocRef = getYearDocRef(clientContact, editYear);
+            const newYearDocumentsRef = getYearDocumentsRef(clientContact, editYear);
             
             if (!newYearDocRef || !newYearDocumentsRef) {
               throw new Error("Unable to get new year references");
@@ -225,7 +225,7 @@ const YearManagement = () => {
             await firestoreHelpers.delete(oldYearDocRef);
             
             // Update client's years array
-            const clientDocRef = getClientDocRef(clientPAN);
+            const clientDocRef = getClientDocRef(clientContact);
             if (clientDocRef) {
               const currentUserData = currentClient || client;
               const existingYears = currentUserData?.years || [];
@@ -272,15 +272,15 @@ const YearManagement = () => {
     const confirmMessage = `⚠️ Are you sure you want to delete year ${year} and all its documents for ${currentClient?.name || client?.name}?\n\nThis action cannot be undone.`;
     if (window.confirm(confirmMessage)) {
       try {
-        const clientPAN = currentClient?.pan || client?.pan || client?.id;
-        if (!clientPAN) {
-          throw new Error("Client PAN is required to delete a year");
+        const clientContact = currentClient?.contact || client?.contact || client?.id;
+        if (!clientContact) {
+          throw new Error("Client Contact is required to delete a year");
         }
         
-        console.log("🗑️ Deleting year", year, "for client PAN:", clientPAN);
+        console.log("🗑️ Deleting year", year, "for client Contact:", clientContact);
         
         // Delete the year document from Firestore (this will cascade delete all documents)
-        const yearDocRef = getYearDocRef(clientPAN, year);
+        const yearDocRef = getYearDocRef(clientContact, year);
         if (!yearDocRef) {
           throw new Error("Unable to get year document reference");
         }
@@ -289,7 +289,7 @@ const YearManagement = () => {
         console.log(`🗑️ Deleted year document: ${year}`);
           
         // Remove the year from client's years array
-        const clientDocRef = getClientDocRef(clientPAN);
+        const clientDocRef = getClientDocRef(clientContact);
         if (clientDocRef) {
           const currentUserData = currentClient || client;
           const existingYears = currentUserData?.years || [];
@@ -343,19 +343,19 @@ const YearManagement = () => {
             return;
           }
           
-          // Get the client PAN (use the client PAN as document ID)
-          const clientPAN = currentClient?.pan || client?.pan || client?.id;
+          // Get the client Contact (use the client Contact as document ID)
+          const clientContact = currentClient?.contact || client?.contact || client?.id;
           const clientName = currentClient?.name || client?.name;
           
-          if (!clientPAN) {
-            throw new Error("Client PAN is required to add a year");
+          if (!clientContact) {
+            throw new Error("Client Contact is required to add a year");
           }
           
-          console.log("➕ Adding year for client:", clientName, "(PAN:", clientPAN, ")");
+          console.log("➕ Adding year for client:", clientName, "(Contact:", clientContact, ")");
           console.log("📅 Formatted year:", formattedYear);
           
           // Create year document in Firestore
-          // Structure: {safeEmail}/user/clients/{clientPAN}/years/{year}
+          // Structure: {safeEmail}/user/clients/{clientContact}/years/{year}
           const yearData = {
             year: formattedYear,
             createdAt: new Date().toISOString(),
@@ -364,8 +364,8 @@ const YearManagement = () => {
             status: "active"
           };
           
-          // Get year document reference using client PAN with formatted year
-          const yearDocRef = getYearDocRef(clientPAN, formattedYear);
+          // Get year document reference using client Contact with formatted year
+          const yearDocRef = getYearDocRef(clientContact, formattedYear);
           if (!yearDocRef) {
             throw new Error("Unable to get year document reference");
           }
@@ -375,8 +375,8 @@ const YearManagement = () => {
           // Save the year document to Firestore
           await firestoreHelpers.set(yearDocRef, yearData);
           
-          // Update the client's years array using client PAN
-          const clientDocRef = getClientDocRef(clientPAN);
+          // Update the client's years array using client Contact
+          const clientDocRef = getClientDocRef(clientContact);
           if (clientDocRef) {
             const currentUserData = currentClient || client;
             const existingYears = currentUserData?.years || [];
@@ -393,7 +393,7 @@ const YearManagement = () => {
                 return getStartYear(b) - getStartYear(a);
               });
               await firestoreHelpers.update(clientDocRef, { years: updatedYears });
-              console.log("📅 Updated client's years array in Firestore for PAN:", clientPAN, "Years:", updatedYears);
+              console.log("📅 Updated client's years array in Firestore for Contact:", clientContact, "Years:", updatedYears);
             }
           }
           
@@ -449,10 +449,10 @@ const YearManagement = () => {
   // Function to get document count from Firestore for a specific year
   const getDocumentCount = async (year) => {
     try {
-      const clientPAN = currentClient?.pan || client?.pan || client?.id;
-      if (!clientPAN) return 0;
+      const clientContact = currentClient?.contact || client?.contact || client?.id;
+      if (!clientContact) return 0;
       
-      const documentsRef = getYearDocumentsRef(clientPAN, year);
+      const documentsRef = getYearDocumentsRef(clientContact, year);
       if (!documentsRef) return 0;
       
       const docs = await documentHelpers.getDocuments(documentsRef);
